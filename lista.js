@@ -6,13 +6,14 @@ app.use(express.json());
 let eventosPorServidor = {};
 
 // Função auxiliar para gerar a mensagem visual do painel com emojis modernos
-const gerarPainelGlobal = (guildId) => {
+const gerarPainelGlobal = (guildId, serverName) => {
     const evento = eventosPorServidor[guildId];
     if (!evento) return "❌ **Nenhuma ação/operação ativa configurada no momento.**";
 
     const listaMembros = evento.membros;
+    const nomeDoServidor = serverName || "Oficiais";
     
-    let texto = `⚡ **PAINEL DE OPERAÇÕES OFICIAIS • OLLYMPYUS**\n\n`;
+    let texto = `⚡ **PAINEL DE OPERAÇÕES OFICIAIS • ${nomeDoServidor.toUpperCase()}**\n\n`;
     texto += `📝 **Informações da Ação Atual:**\n`;
     texto += `> ⚔️ **Tipo De Ação:** \`${evento.tipoAcao}\`\n`;
     texto += `> 👥 **Contingente Máx:** \`${evento.contingenteMax} Operacionais\`\n`;
@@ -36,6 +37,7 @@ const gerarPainelGlobal = (guildId) => {
             if (index === 0) medalha = '🥇';
             if (index === 1) medalha = '🥈';
             if (index === 2) medalha = '🥉';
+            
             texto += `${medalha} \`[Vaga #${String(index + 1).padStart(2, '0')}]\` ❯ <@${membro.id}> (@${membro.username})\n`;
         });
     }
@@ -44,7 +46,7 @@ const gerarPainelGlobal = (guildId) => {
 
 // ENDPOINT PRINCIPAL
 app.post('/gerenciar-lista', (req, res) => {
-    const { guildId, userId, username, acao, tipoAcao, contingenteMax, armamento, dataHorario, horarioQg, resultado } = req.body;
+    const { guildId, serverName, userId, username, acao, tipoAcao, contingenteMax, armamento, dataHorario, horarioQg, resultado } = req.body;
     
     if (!guildId) return res.json({ status: "erro", mensagem: "❌ ID do servidor ausente." });
 
@@ -58,7 +60,7 @@ app.post('/gerenciar-lista', (req, res) => {
             horarioQg: horarioQg || "Não informado",
             membros: [] 
         };
-        return res.json({ status: "sucesso", embed_corpo: gerarPainelGlobal(guildId) });
+        return res.json({ status: "sucesso", embed_corpo: gerarPainelGlobal(guildId, serverName) });
     }
 
     // Bloqueia interações se o painel ainda não foi criado por um líder
@@ -75,7 +77,7 @@ app.post('/gerenciar-lista', (req, res) => {
         if (evento.membros.length >= evento.contingenteMax) return res.json({ status: "erro", mensagem: "❌ Esta ação já atingiu o limite máximo de operacionais!" });
 
         evento.membros.push({ id: userId, username: username });
-        return res.json({ status: "sucesso", embed_corpo: gerarPainelGlobal(guildId) });
+        return res.json({ status: "sucesso", embed_corpo: gerarPainelGlobal(guildId, serverName) });
     }
 
     // 3. MEMBRO SAIR DA LISTA
@@ -84,36 +86,35 @@ app.post('/gerenciar-lista', (req, res) => {
         if (index === -1) return res.json({ status: "erro", mensagem: "⚠️ Você não está inscrito nesta lista para poder sair." });
 
         evento.membros.splice(index, 1);
-        return res.json({ status: "sucesso", embed_corpo: gerarPainelGlobal(guildId) });
+        return res.json({ status: "sucesso", embed_corpo: gerarPainelGlobal(guildId, serverName) });
     }
 
-    // 4. STAFF ENCERRAR AÇÃO (Gera relatório e limpa a lista)
+    // 4. STAFF ENCERRAR AÇÃO
     if (acao === 'encerrar') {
         const statusResultado = resultado === 'vitoria' ? '🏆 VITÓRIA' : '💀 DERROTA';
         const corResultado = resultado === 'vitoria' ? '🟢' : '🔴';
+        const nomeDoServidor = serverName || "Oficiais";
         
-        let relatorio = `🏁 **AÇÃO ENCERRADA • RELATÓRIO OFICIAL**\n\n`;
+        let relatorio = `🏁 **AÇÃO ENCERRADA • RELATÓRIO OFICIAL ${nomeDoServidor.toUpperCase()}**\n\n`;
         relatorio += `> ⚔️ **Operação:** \`${evento.tipoAcao}\`\n`;
-        relatorio += `${corResultado} **Resultado:** \`${statusResultado}\`\n`;
-        relatorio += `> 📅 **Data:** \`${evento.dataHorario}\`\n`;
+        relatorio += `${corResultado} **Resultado da Missão:** \`${statusResultado}\`\n`;
+        relatorio += `> 📅 **Data/Horário:** \`${evento.dataHorario}\`\n`;
         relatorio += `──────────────────────────────\n`;
-        relatorio += `🎖️ **ELENCO PARTICIPANTE:**\n\n`;
+        relatorio += `🎖️ **ELENCO PARTICIPANTE DESTA OPERAÇÃO:**\n\n`;
 
         if (evento.membros.length === 0) {
-            relatorio += `*Nenhum operacional participou desta ação.*`;
+            relatorio += `*Nenhum operacional assinou a lista para esta ação.*`;
         } else {
             evento.membros.forEach((membro, index) => {
-                relatorio += `\`[OP #${String(index + 1).padStart(2, '0')}]\` ❯ <@${membro.id}>\n`;
+                relatorio += `\`[OP #${String(index + 1).padStart(2, '0')}]\` ❯ <@${membro.id}> (@${membro.username})\n`;
             });
         }
 
-        // Limpa a lista do servidor após gerar o relatório
         eventosPorServidor[guildId] = null;
-
         return res.json({ status: "encerrado", embed_corpo: relatorio });
     }
 
-    return res.json({ status: "sucesso", embed_corpo: gerarPainelGlobal(guildId) });
+    return res.json({ status: "sucesso", embed_corpo: gerarPainelGlobal(guildId, serverName) });
 });
 
 const PORT = process.env.PORT || 3001;
