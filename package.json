@@ -1,0 +1,12 @@
+{
+  "name": "api-lista-bot",
+  "version": "1.0.0",
+  "description": "API de lista para BotGhost",
+  "main": "lista.js",
+  "scripts": {
+    "start": "node lista.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
