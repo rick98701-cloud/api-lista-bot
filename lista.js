@@ -6,15 +6,14 @@ app.use(express.json());
 let eventosPorServidor = {};
 
 // Função auxiliar para gerar a mensagem visual do painel com emojis modernos
-const gerarPainelGlobal = (guildId, serverName) => {
+const gerarPainelGlobal = (guildId) => {
     const evento = eventosPorServidor[guildId];
     if (!evento) return "❌ **Nenhuma ação/operação ativa configurada no momento.**";
 
     if (!evento.membros) evento.membros = [];
     const listaMembros = evento.membros;
-    const nomeDoServidor = serverName || "Oficiais";
     
-    let texto = `⚡ **PAINEL DE OPERAÇÕES OFICIAIS • ${nomeDoServidor.toUpperCase()}**\n\n`;
+    let texto = `⚡ **PAINEL DE OPERAÇÕES OFICIAIS**\n\n`;
     texto += `📝 **Informações da Ação Atual:**\n`;
     texto += `> ⚔️ **Tipo De Ação:** \`${evento.tipoAcao}\`\n`;
     texto += `> 👥 **Contingente Máx:** \`${evento.contingenteMax} Operacionais\`\n`;
@@ -39,7 +38,8 @@ const gerarPainelGlobal = (guildId, serverName) => {
             if (index === 1) medalha = '🥈';
             if (index === 2) medalha = '🥉';
             
-            texto += `${medalha} \`[Vaga #${String(index + 1).padStart(2, '0')}]\` ❯ <@${membro.id}> (@${membro.username})\n`;
+            // Renderiza apenas a menção direta por ID para o Discord converter em azul automaticamente
+            texto += `${medalha} \`[Vaga #${String(index + 1).padStart(2, '0')}]\` ❯ <@${membro.id}>\n`;
         });
     }
     return texto;
@@ -48,7 +48,7 @@ const gerarPainelGlobal = (guildId, serverName) => {
 // ENDPOINT PRINCIPAL
 app.post('/gerenciar-lista', (req, res) => {
     try {
-        const { guildId, serverName, userId, username, acao, tipoAcao, contingenteMax, armamento, dataHorario, horarioQg, resultado, liderId } = req.body;
+        const { guildId, userId, username, acao, tipoAcao, contingenteMax, armamento, dataHorario, horarioQg, resultado, liderId } = req.body;
         
         if (!guildId) return res.status(400).send("❌ ID do servidor ausente.");
 
@@ -65,8 +65,7 @@ app.post('/gerenciar-lista', (req, res) => {
                 liderId: liderId || userId,
                 membros: [] 
             };
-            // Retorna o texto puro formatado diretamente
-            return res.send(gerarPainelGlobal(guildId, serverName));
+            return res.send(gerarPainelGlobal(guildId));
         }
 
         // Bloqueia interações se o painel ainda não foi criado por um líder
@@ -84,7 +83,7 @@ app.post('/gerenciar-lista', (req, res) => {
             if (evento.membros.length >= evento.contingenteMax) return res.status(400).send("❌ Esta ação já atingiu o limite máximo de operacionais!");
 
             evento.membros.push({ id: userId, username: username });
-            return res.send(gerarPainelGlobal(guildId, serverName));
+            return res.send(gerarPainelGlobal(guildId));
         }
 
         // 3. MEMBRO SAIR DA LISTA
@@ -93,16 +92,15 @@ app.post('/gerenciar-lista', (req, res) => {
             if (index === -1) return res.status(400).send("⚠️ Você não está inscrito nesta lista para poder sair.");
 
             evento.membros.splice(index, 1);
-            return res.send(gerarPainelGlobal(guildId, serverName));
+            return res.send(gerarPainelGlobal(guildId));
         }
 
         // 4. STAFF ENCERRAR AÇÃO
         if (acao === 'encerrar') {
             const statusResultado = resultado === 'vitoria' ? '🏆 VITÓRIA' : '💀 DERROTA';
             const corResultado = resultado === 'vitoria' ? '🟢' : '🔴';
-            const nomeDoServidor = serverName || "Oficiais";
             
-            let relatorio = `🏁 **AÇÃO ENCERRADA • RELATÓRIO OFICIAL ${nomeDoServidor.toUpperCase()}**\n\n`;
+            let relatorio = `🏁 **AÇÃO ENCERRADA • RELATÓRIO OFICIAL**\n\n`;
             relatorio += `> ⚔️ **Operação realizada:** \`${evento.tipoAcao}\`\n`;
             relatorio += `> 🧔 **Responsável pela criação:** <@${evento.liderId}>\n`;
             relatorio += `${corResultado} **Resultado da Missão:** \`${statusResultado}\`\n`;
@@ -114,7 +112,7 @@ app.post('/gerenciar-lista', (req, res) => {
                 relatorio += `*Nenhum operacional assinou a lista para esta ação.*`;
             } else {
                 evento.membros.forEach((membro, index) => {
-                    relatorio += `\`[OP #${String(index + 1).padStart(2, '0')}]\` ❯ <@${membro.id}> (@${membro.username})\n`;
+                    relatorio += `\`[OP #${String(index + 1).padStart(2, '0')}]\` ❯ <@${membro.id}>\n`;
                 });
             }
 
@@ -122,7 +120,7 @@ app.post('/gerenciar-lista', (req, res) => {
             return res.send(relatorio);
         }
 
-        return res.send(gerarPainelGlobal(guildId, serverName));
+        return res.send(gerarPainelGlobal(guildId));
 
     } catch (error) {
         console.error("Erro interno na API:", error);
