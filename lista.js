@@ -10,7 +10,6 @@ const gerarPainelGlobal = (guildId, serverName) => {
     const evento = eventosPorServidor[guildId];
     if (!evento) return "❌ **Nenhuma ação/operação ativa configurada no momento.**";
 
-    // Garante que a lista de membros exista
     if (!evento.membros) evento.membros = [];
     const listaMembros = evento.membros;
     const nomeDoServidor = serverName || "Oficiais";
@@ -25,7 +24,6 @@ const gerarPainelGlobal = (guildId, serverName) => {
     texto += `⚠️ **Aviso:** Garanta os seus equipamentos e clique nos botões abaixo para gerenciar a sua presença.\n`;
     texto += `──────────────────────────────\n`;
     
-    // Altera o emoji de status se a lista estiver lotada
     const estaLotado = listaMembros.length >= evento.contingenteMax;
     const emojiStatus = estaLotado ? '🔴' : '🟢';
     const textoStatus = estaLotado ? 'LISTA LOTADA' : 'INSCRIÇÕES ABERTAS';
@@ -52,11 +50,10 @@ app.post('/gerenciar-lista', (req, res) => {
     try {
         const { guildId, serverName, userId, username, acao, tipoAcao, contingenteMax, armamento, dataHorario, horarioQg, resultado, liderId } = req.body;
         
-        if (!guildId) return res.json({ status: "erro", mensagem: "❌ ID do servidor ausente." });
+        if (!guildId) return res.status(400).send("❌ ID do servidor ausente.");
 
         // 1. CRIAR OU EDITAR O PAINEL DE AÇÃO (Líder envia o formulário)
         if (acao === 'configurar_painel') {
-            // Converte com segurança o contingente máximo para número puro
             const maxVagas = parseInt(String(contingenteMax).replace(/[^\d]/g, '')) || 10;
 
             eventosPorServidor[guildId] = {
@@ -68,12 +65,13 @@ app.post('/gerenciar-lista', (req, res) => {
                 liderId: liderId || userId,
                 membros: [] 
             };
-            return res.json({ status: "sucesso", embed_corpo: gerarPainelGlobal(guildId, serverName) });
+            // Retorna o texto puro formatado diretamente
+            return res.send(gerarPainelGlobal(guildId, serverName));
         }
 
         // Bloqueia interações se o painel ainda não foi criado por um líder
         if (!eventosPorServidor[guildId]) {
-            return res.json({ status: "erro", mensagem: "❌ Não existe nenhuma operação ativa configurada no momento." });
+            return res.status(400).send("❌ Não existe nenhuma operação ativa configurada no momento.");
         }
 
         const evento = eventosPorServidor[guildId];
@@ -82,20 +80,20 @@ app.post('/gerenciar-lista', (req, res) => {
         // 2. MEMBRO ENTRAR NA LISTA
         if (acao === 'entrar') {
             const jaEstaNaLista = evento.membros.some(m => m.id === userId);
-            if (jaEstaNaLista) return res.json({ status: "erro", mensagem: "⚠️ Você já está inscrito nesta lista de ação!" });
-            if (evento.membros.length >= evento.contingenteMax) return res.json({ status: "erro", mensagem: "❌ Esta ação já atingiu o limite máximo de operacionais!" });
+            if (jaEstaNaLista) return res.status(400).send("⚠️ Você já está inscrito nesta lista de ação!");
+            if (evento.membros.length >= evento.contingenteMax) return res.status(400).send("❌ Esta ação já atingiu o limite máximo de operacionais!");
 
             evento.membros.push({ id: userId, username: username });
-            return res.json({ status: "sucesso", embed_corpo: gerarPainelGlobal(guildId, serverName) });
+            return res.send(gerarPainelGlobal(guildId, serverName));
         }
 
         // 3. MEMBRO SAIR DA LISTA
         if (acao === 'sair') {
             const index = evento.membros.findIndex(m => m.id === userId);
-            if (index === -1) return res.json({ status: "erro", mensagem: "⚠️ Você não está inscrito nesta lista para poder sair." });
+            if (index === -1) return res.status(400).send("⚠️ Você não está inscrito nesta lista para poder sair.");
 
             evento.membros.splice(index, 1);
-            return res.json({ status: "sucesso", embed_corpo: gerarPainelGlobal(guildId, serverName) });
+            return res.send(gerarPainelGlobal(guildId, serverName));
         }
 
         // 4. STAFF ENCERRAR AÇÃO
@@ -121,14 +119,14 @@ app.post('/gerenciar-lista', (req, res) => {
             }
 
             eventosPorServidor[guildId] = null; // Zera a lista do servidor
-            return res.json({ status: "encerrado", embed_corpo: relatorio });
+            return res.send(relatorio);
         }
 
-        return res.json({ status: "sucesso", embed_corpo: gerarPainelGlobal(guildId, serverName) });
+        return res.send(gerarPainelGlobal(guildId, serverName));
 
     } catch (error) {
         console.error("Erro interno na API:", error);
-        return res.json({ status: "erro", embed_corpo: "❌ Erro interno ao processar os dados da lista." });
+        return res.status(500).send("❌ Erro interno ao processar os dados da lista.");
     }
 });
 
