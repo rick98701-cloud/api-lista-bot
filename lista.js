@@ -7,7 +7,7 @@ let eventosAntigos = {};
 let eventosComReserva = {};
 
 // ==========================================
-// LÓGICA DO BOT NOVO (COM SISTEMA DE RESERVA)
+// LÓGICA DO BOT NOVO (COM FILA DE RESERVA)
 // ==========================================
 const gerarPainelComReserva = (guildId) => {
     const evento = eventosComReserva[guildId];
@@ -43,15 +43,14 @@ const gerarPainelComReserva = (guildId) => {
     texto += `${emojiStatus} **STATUS DA LISTA:** \`${textoStatus}\`\n\n`;
 
     texto += `🎖️ **LISTA PRINCIPAL (${evento.membros.length}/${evento.contingenteMax}):**\n`;
+    
+    // MENSAGEM AJUSTADA SE NÃO HOUVER NINGUÉM NA LISTA PRINCIPAL
     if (evento.membros.length === 0) {
-        texto += `*✨ Nenhum membro inscrito.*`;
+        texto += `*Nenhum membro na lista atual.*`;
     } else {
         evento.membros.forEach((membro, index) => {
-            let medalha = '🔹';
-            if (index === 0) medalha = '🥇';
-            if (index === 1) medalha = '🥈';
-            if (index === 2) medalha = '🥉';
-            texto += `${medalha} \`[Vaga #${String(index + 1).padStart(2, '0')}]\` ❯ <@${membro.id}>\n`;
+            // FORMATO LIMPO SEM MEDALHAS (Ex: 1 - <@ID>)
+            texto += `\`${index + 1} -\` <@${membro.id}>\n`;
         });
     }
 
@@ -60,13 +59,14 @@ const gerarPainelComReserva = (guildId) => {
         texto += `*Nenhum operacional na espera por vagas.*`;
     } else {
         evento.reserva.forEach((membro, index) => {
-            texto += `\`[RESERVA #${index + 1]\` ❯ <@${membro.id}>\n`;
+            // FORMATO LIMPO TAMBÉM NA RESERVA
+            texto += `\`${index + 1} -\` <@${membro.id}>\n`;
         });
     }
     return texto;
 };
 
-// ROTA NOVA (Para o Bot Novo usar o Sistema de Reserva)
+// ROTA NOVA (Com Fila de Reserva)
 app.post('/gerenciar-lista-reserva', (req, res) => {
     try {
         const { guildId, userId, username, acao, tipoAcao, contingenteMax, armamento, dataHorario, horarioQg, resultado, liderId } = req.body;
@@ -128,7 +128,7 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
                 relatorio += `*Nenhum operacional assinou a lista.*`;
             } else {
                 evento.membros.forEach((membro, index) => {
-                    relatorio += `\`[OP #${String(index + 1).padStart(2, '0')}]\` ❯ <@${membro.id}>\n`;
+                    relatorio += `\`${index + 1} -\` <@${membro.id}>\n`;
                 });
             }
             eventosComReserva[guildId] = null;
@@ -148,7 +148,7 @@ const gerarPainelAntigo = (guildId) => {
     texto += `> ⚔️ **Tipo:** \`${evento.tipoAcao}\`\n`;
     texto += `> 👥 **Vagas:** \`${evento.membros.length}/${evento.contingenteMax}\`\n\n`;
     if (evento.membros.length === 0) texto += `*Nenhum membro inscrito.*`;
-    else evento.membros.forEach((m, i) => { texto += `🔹 \`[Vaga #${i+1}]\` ❯ <@${m.id}>\n`; });
+    else evento.membros.forEach((m, i) => { texto += `\`${i + 1} -\` <@${m.id}>\n`; });
     return texto;
 };
 
@@ -181,6 +181,5 @@ app.post('/gerenciar-lista', (req, res) => {
     } catch (e) { return res.status(500).send("❌ Erro."); }
 });
 
-// O Render injeta a porta automaticamente através do process.env.PORT, por isso deixamos dinâmico!
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`API unificada rodando com sucesso!`));
