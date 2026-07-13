@@ -65,6 +65,9 @@ const gerarPainelComReserva = (guildId) => {
 // ROTA NOVA (Com Fila de Reserva)
 app.post('/gerenciar-lista-reserva', (req, res) => {
     try {
+        // LOG DE MONITORAMENTO: Mostra no terminal tudo o que chega do Discord
+        console.log("📥 DADOS RECEBIDOS NA REQUISIÇÃO:", req.body);
+
         const { guildId, userId, username, acao, tipoAcao, contingenteMax, armamento, dataHorario, horarioQg, resultado, liderId } = req.body;
         if (!guildId) return res.status(400).send("❌ ID do servidor ausente.");
 
@@ -115,9 +118,15 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
         }
 
         if (acao === 'encerrar') {
-            // Remove maiúsculas e acentos (ex: "Vitória" vira "vitoria")
-            const resultadoFormatado = String(resultado).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-            const statusResultado = resultadoFormatado === 'vitoria' ? '🏆 VITÓRIA' : '💀 DERROTA';
+            // Tratamento completo da string enviada para evitar quebras por acento ou maiúsculas
+            const resultadoFormatado = String(resultado || "")
+                .trim()
+                .toLowerCase()
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "");
+            
+            // Busca parcial por aproximação
+            const statusResultado = resultadoFormatado.includes('vitoria') ? '🏆 VITÓRIA' : '💀 DERROTA';
             
             let relatorio = `🏁 **AÇÃO ENCERRADA • RELATÓRIO OFICIAL**\n\n`;
             relatorio += `> ⚔️ **Operação realizada:** \`${evento.tipoAcao}\`\n`;
