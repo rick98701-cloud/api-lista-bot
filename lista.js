@@ -6,9 +6,14 @@ let eventosAntigos = {};
 let eventosComReserva = {};
 let ultimosRelatorios = {}; 
 
+const obterDataHoraBrasilia = () => {
+    return new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+};
+
 const gerarPainelComReserva = (guildId) => {
     const evento = eventosComReserva[guildId];
     if (!evento) return "❌ **Nenhuma ação/operação ativa configurada no momento.**";
+
     if (!evento.membros) evento.membros = [];
     if (!evento.reserva) evento.reserva = [];
     
@@ -24,7 +29,9 @@ const gerarPainelComReserva = (guildId) => {
     
     const estaLotado = evento.membros.length >= evento.contingenteMax;
     const reservaLotada = evento.reserva.length >= 5;
-    let textoStatus = 'INSCRIÇÕES ABERTAS', emojiStatus = '🟢';
+    
+    let textoStatus = 'INSCRIÇÕES ABERTAS';
+    let emojiStatus = '🟢';
     
     if (estaLotado && !reservaLotada) {
         textoStatus = `LISTA PRINCIPAL LOTADA • RESERVA ABERTA (${evento.reserva.length}/5)`;
@@ -44,6 +51,7 @@ const gerarPainelComReserva = (guildId) => {
             texto += `\`${index + 1} -\` <@${membro.id}>\n`;
         });
     }
+
     texto += `\n\n⏳ **FILA DE RESERVA VIAVEL (MÁX 5):**\n`;
     if (evento.reserva.length === 0) {
         texto += `*Nenhum operacional na espera por vagas.*`;
@@ -58,15 +66,15 @@ const gerarPainelComReserva = (guildId) => {
 app.post('/gerenciar-lista-reserva', (req, res) => {
     try {
         console.log("📥 DADOS RECEBIDOS NA REQUISIÇÃO:", req.body);
-        const { guildId, userId, username, acao, tipoAcao, contingenteMax, armamento, dataHorario, horarioQg, resultado, liderId } = req.body;
+
+        const { guildId, userId, username, acao, tipoAcao, contingenteMax, armamento, dataHorario, horarioQg, resultado, valorGanho } = req.body;
         if (!guildId) return res.status(400).send("❌ ID do servidor ausente.");
 
         if (acao === 'configurar_painel') {
             const maxVagas = parseInt(String(contingenteMax).replace(/[^\d]/g, '')) || 10;
             eventosComReserva[guildId] = {
                 tipoAcao: tipoAcao || "Não informado", contingenteMax: maxVagas, armamento: armamento || "Não informado",
-                dataHorario: dataHorario || "Não informado", horarioQg: horarioQg || "Não informado", liderId: liderId || userId,
-                membros: [], reserva: []
+                dataHorario: dataHorario || "Não informado", horarioQg: horarioQg || "Não informado", membros: [], reserva: []
             };
             return res.send(gerarPainelComReserva(guildId));
         }
@@ -74,6 +82,7 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
         if (acao === 'encerrar' && !eventosComReserva[guildId] && ultimosRelatorios[guildId]) {
             return res.json(ultimosRelatorios[guildId]);
         }
+
         if (!eventosComReserva[guildId]) return res.status(400).send("❌ Não existe nenhuma operação ativa configurada.");
         const evento = eventosComReserva[guildId];
 
@@ -112,22 +121,30 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
 
         if (acao === 'encerrar') {
             let statusResultado = '💀 DERROTA';
-            let corEmbed = '#e74c3c'; // Vermelho Padrão
-            let iconeEmbed = 'https://discordapp.net'; // Substitua pelo link do seu X se quiser
+            let corEmbed = '#e74c3c';
+            let iconeEmbed = 'https://discordapp.net';
+            let rotuloValor = 'Valor Recebido'; 
 
             if (resultado) {
                 const resultadoFormatado = String(resultado).trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
                 
                 if (resultadoFormatado.includes('vitoria') || resultadoFormatado.includes('🏆')) {
                     statusResultado = '🏆 VITÓRIA';
-                    corEmbed = '#2ecc71'; // Verde
-                    iconeEmbed = 'https://discordapp.net'; // Coloque o link da coroa aqui
+                    corEmbed = '#2ecc71';
+                    iconeEmbed = 'https://discordapp.net';
+                    rotuloValor = 'Valor Ganho'; 
                 }
             }
             
+            const valorFinalExibido = valorGanho ? `R$ ${valorGanho}` : "Não informado";
+            const dataHoraFechamento = obterDataHoraBrasilia();
+
             let relatorioTexto = `🏁 **AÇÃO ENCERRADA • RELATÓRIO OFICIAL**\n\n`;
             relatorioTexto += `> ⚔️ **Operação realizada:** \`${evento.tipoAcao || "Não informado"}\`\n`;
-            relatorioTexto += `> **Resultado:** \`${statusResultado}\`\n\n`;
+            relatorioTexto += `> 🟢 **Resultado:** \`${statusResultado}\`\n`;
+            relatorioTexto += `> 💰 **${rotuloValor}:** \`${valorFinalExibido}\`\n`; 
+            relatorioTexto += `> 👤 **Finalizado por:** <@${userId || "ID ausente"}>\n`;
+            relatorioTexto += `> 📅 **Data & Horário:** \`${dataHoraFechamento}\`\n\n`;
             relatorioTexto += `🎖️ **OPERACIONAIS PARTICIPANTES:**\n`;
             
             if (evento.membros.length === 0) {
@@ -138,7 +155,6 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
                 });
             }
             
-            // Monta a resposta estruturada para o Botghost ler os campos separados
             const respostaEstruturada = {
                 texto: relatorioTexto,
                 cor: corEmbed,
@@ -153,9 +169,6 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
     } catch (e) { return res.status(500).send("❌ Erro interno."); }
 });
 
-// ==========================================
-// ROTA ANTIGA (Mantida estável)
-// ==========================================
 const gerarPainelAntigo = (guildId) => {
     const evento = eventosAntigos[guildId];
     if (!evento) return "❌ **Nenhuma ação ativa configurada.**";
@@ -188,12 +201,4 @@ app.post('/gerenciar-lista', (req, res) => {
         if (acao === 'sair') {
             const idx = evento.membros.findIndex(m => m.id === userId);
             if (idx === -1) return res.status(400).send("⚠️ Não inscrito.");
-            evento.membros.splice(idx, 1);
-            return res.send(gerarPainelAntigo(guildId));
-        }
-        return res.send(gerarPainelAntigo(guildId));
-    } catch (e) { return res.status(500).send("❌ Erro interno."); }
-});
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Servidor rodando com sucesso na porta ${PORT}`));
+         evento.membros.splice(idx, 1);return res.send(gerarPainelAntigo(guildId));}return res.send(gerarPainelAntigo(guildId));} catch (e) { return res.status(500).send("❌ Erro interno."); }});const PORT = process.env.PORT || 3000;app.listen(PORT, () => console.log(🚀 Servidor rodando com sucesso na porta ${PORT}));
