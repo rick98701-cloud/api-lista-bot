@@ -65,7 +65,7 @@ const gerarPainelComReserva = (guildId) => {
 // ROTA NOVA (Com Fila de Reserva)
 app.post('/gerenciar-lista-reserva', (req, res) => {
     try {
-        // LOG DE MONITORAMENTO: Mostra no terminal tudo o que chega do Discord
+        // LOG DE MONITORAMENTO: Mantido para você acompanhar as requisições no Render
         console.log("📥 DADOS RECEBIDOS NA REQUISIÇÃO:", req.body);
 
         const { guildId, userId, username, acao, tipoAcao, contingenteMax, armamento, dataHorario, horarioQg, resultado, liderId } = req.body;
@@ -118,18 +118,26 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
         }
 
         if (acao === 'encerrar') {
-            // Tratamento completo da string enviada para evitar quebras por acento ou maiúsculas
-            const resultadoFormatado = String(resultado || "")
-                .trim()
-                .toLowerCase()
-                .normalize("NFD")
-                .replace(/[\u0300-\u036f]/g, "");
-            
-            // Busca parcial por aproximação
-            const statusResultado = resultadoFormatado.includes('vitoria') ? '🏆 VITÓRIA' : '💀 DERROTA';
+            let statusResultado = '💀 DERROTA';
+
+            // Se o campo 'resultado' existir na requisição, faz a análise segura dele
+            if (resultado) {
+                const resultadoFormatado = String(resultado)
+                    .trim()
+                    .toLowerCase()
+                    .normalize("NFD")
+                    .replace(/[\u0300-\u036f]/g, "");
+                
+                if (resultadoFormatado.includes('vitoria')) {
+                    statusResultado = '🏆 VITÓRIA';
+                }
+            } else {
+                // Mensagem de segurança caso sua automação no Discord continue sem enviar o parâmetro correto
+                statusResultado = '❓ NÃO SELECIONADO NO BOT';
+            }
             
             let relatorio = `🏁 **AÇÃO ENCERRADA • RELATÓRIO OFICIAL**\n\n`;
-            relatorio += `> ⚔️ **Operação realizada:** \`${evento.tipoAcao}\`\n`;
+            relatorio += `> ⚔️ **Operação realizada:** \`${evento.tipoAcao || "Não informado"}\`\n`;
             relatorio += `> 🟢 **Resultado:** \`${statusResultado}\`\n\n`;
             relatorio += `🎖️ **OPERACIONAIS PARTICIPANTES:**\n`;
             
@@ -141,7 +149,7 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
                 });
             }
             
-            // Remove o evento completamente da memória do servidor
+            // Remove o evento completamente da memória do servidor de forma limpa
             delete eventosComReserva[guildId];
             return res.send(relatorio);
         }
