@@ -121,8 +121,8 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
         if (acao === 'encerrar') {
             let statusResultado = '💀 DERROTA';
             let corEmbed = '#e74c3c';
-            // URLs de imagens PNG universais hospedadas externamente para aceitação total no Discord
-            let iconeEmbed = 'https://imgur.com'; 
+            // URLs purificadas e simplificadas direto para o arquivo bruto do GIF
+            let iconeEmbed = 'https://discordapp.com';
             let rotuloValor = 'Valor Recebido'; 
 
             if (resultado) {
@@ -131,7 +131,7 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
                 if (resultadoFormatado.includes('vitoria') || resultadoFormatado.includes('🏆')) {
                     statusResultado = '🏆 VITÓRIA';
                     corEmbed = '#2ecc71';
-                    iconeEmbed = 'https://imgur.com'; 
+                    iconeEmbed = 'https://discordapp.com';
                     rotuloValor = 'Valor Ganho'; 
                 }
             }
