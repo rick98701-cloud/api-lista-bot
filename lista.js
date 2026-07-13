@@ -41,15 +41,12 @@ const gerarPainelComReserva = (guildId) => {
     }
     
     texto += `${emojiStatus} **STATUS DA LISTA:** \`${textoStatus}\`\n\n`;
-
     texto += `🎖️ **LISTA PRINCIPAL (${evento.membros.length}/${evento.contingenteMax}):**\n`;
     
-    // MENSAGEM AJUSTADA SE NÃO HOUVER NINGUÉM NA LISTA PRINCIPAL
     if (evento.membros.length === 0) {
         texto += `*Nenhum membro na lista atual.*`;
     } else {
         evento.membros.forEach((membro, index) => {
-            // FORMATO LIMPO SEM MEDALHAS (Ex: 1 - <@ID>)
             texto += `\`${index + 1} -\` <@${membro.id}>\n`;
         });
     }
@@ -59,7 +56,6 @@ const gerarPainelComReserva = (guildId) => {
         texto += `*Nenhum operacional na espera por vagas.*`;
     } else {
         evento.reserva.forEach((membro, index) => {
-            // FORMATO LIMPO TAMBÉM NA RESERVA
             texto += `\`${index + 1} -\` <@${membro.id}>\n`;
         });
     }
@@ -119,11 +115,15 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
         }
 
         if (acao === 'encerrar') {
-            const statusResultado = resultado === 'vitoria' ? '🏆 VITÓRIA' : '💀 DERROTA';
+            // Remove maiúsculas e acentos (ex: "Vitória" vira "vitoria")
+            const resultadoFormatado = String(resultado).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const statusResultado = resultadoFormatado === 'vitoria' ? '🏆 VITÓRIA' : '💀 DERROTA';
+            
             let relatorio = `🏁 **AÇÃO ENCERRADA • RELATÓRIO OFICIAL**\n\n`;
             relatorio += `> ⚔️ **Operação realizada:** \`${evento.tipoAcao}\`\n`;
             relatorio += `> 🟢 **Resultado:** \`${statusResultado}\`\n\n`;
             relatorio += `🎖️ **OPERACIONAIS PARTICIPANTES:**\n`;
+            
             if (evento.membros.length === 0) {
                 relatorio += `*Nenhum operacional assinou a lista.*`;
             } else {
@@ -131,7 +131,9 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
                     relatorio += `\`${index + 1} -\` <@${membro.id}>\n`;
                 });
             }
-            eventosComReserva[guildId] = null;
+            
+            // Remove o evento completamente da memória do servidor
+            delete eventosComReserva[guildId];
             return res.send(relatorio);
         }
         return res.send(gerarPainelComReserva(guildId));
@@ -172,14 +174,13 @@ app.post('/gerenciar-lista', (req, res) => {
         }
         if (acao === 'sair') {
             const idx = evento.membros.findIndex(m => m.id === userId);
-            if (idx === -1) return res.status(400).send("⚠️ Não está na lista.");
+            if (idx === -1) return res.status(400).send("⚠️ Não inscrito.");
             evento.membros.splice(idx, 1);
             return res.send(gerarPainelAntigo(guildId));
         }
-        if (acao === 'encerrar') { eventosAntigos[guildId] = null; return res.send("🏁 Ação encerrada."); }
         return res.send(gerarPainelAntigo(guildId));
-    } catch (e) { return res.status(500).send("❌ Erro."); }
+    } catch (e) { return res.status(500).send("❌ Erro interno."); }
 });
 
-const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => console.log(`API unificada rodando com sucesso!`));
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`🚀 Servidor rodando com sucesso na porta ${PORT}`));
