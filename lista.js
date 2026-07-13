@@ -2,17 +2,13 @@ const express = require('express');
 const app = express();
 app.use(express.json());
 
-// Banco de dados em memória por servidor (Guild)
 let eventosAntigos = {};
 let eventosComReserva = {};
+let ultimosRelatorios = {}; 
 
-// ==========================================
-// LÓGICA DO BOT NOVO (COM FILA DE RESERVA)
-// ==========================================
 const gerarPainelComReserva = (guildId) => {
     const evento = eventosComReserva[guildId];
     if (!evento) return "❌ **Nenhuma ação/operação ativa configurada no momento.**";
-
     if (!evento.membros) evento.membros = [];
     if (!evento.reserva) evento.reserva = [];
     
@@ -28,9 +24,7 @@ const gerarPainelComReserva = (guildId) => {
     
     const estaLotado = evento.membros.length >= evento.contingenteMax;
     const reservaLotada = evento.reserva.length >= 5;
-    
-    let textoStatus = 'INSCRIÇÕES ABERTAS';
-    let emojiStatus = '🟢';
+    let textoStatus = 'INSCRIÇÕES ABERTAS', emojiStatus = '🟢';
     
     if (estaLotado && !reservaLotada) {
         textoStatus = `LISTA PRINCIPAL LOTADA • RESERVA ABERTA (${evento.reserva.length}/5)`;
@@ -50,7 +44,6 @@ const gerarPainelComReserva = (guildId) => {
             texto += `\`${index + 1} -\` <@${membro.id}>\n`;
         });
     }
-
     texto += `\n\n⏳ **FILA DE RESERVA VIAVEL (MÁX 5):**\n`;
     if (evento.reserva.length === 0) {
         texto += `*Nenhum operacional na espera por vagas.*`;
@@ -62,11 +55,9 @@ const gerarPainelComReserva = (guildId) => {
     return texto;
 };
 
-// ROTA NOVA (Com Fila de Reserva)
 app.post('/gerenciar-lista-reserva', (req, res) => {
     try {
         console.log("📥 DADOS RECEBIDOS NA REQUISIÇÃO:", req.body);
-
         const { guildId, userId, username, acao, tipoAcao, contingenteMax, armamento, dataHorario, horarioQg, resultado, liderId } = req.body;
         if (!guildId) return res.status(400).send("❌ ID do servidor ausente.");
 
@@ -80,6 +71,9 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
             return res.send(gerarPainelComReserva(guildId));
         }
 
+        if (acao === 'encerrar' && !eventosComReserva[guildId] && ultimosRelatorios[guildId]) {
+            return res.json(ultimosRelatorios[guildId]);
+        }
         if (!eventosComReserva[guildId]) return res.status(400).send("❌ Não existe nenhuma operação ativa configurada.");
         const evento = eventosComReserva[guildId];
 
@@ -118,51 +112,49 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
 
         if (acao === 'encerrar') {
             let statusResultado = '💀 DERROTA';
+            let corEmbed = '#e74c3c'; // Vermelho Padrão
+            let iconeEmbed = 'https://discordapp.net'; // Substitua pelo link do seu X se quiser
 
             if (resultado) {
-                const resultadoFormatado = String(resultado)
-                    .trim()
-                    .toLowerCase()
-                    .normalize("NFD")
-                    .replace(/[\u0300-\u036f]/g, "");
+                const resultadoFormatado = String(resultado).trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
                 
-                // Análise e tratamento do resultado recebido do bot
-                if (resultadoFormatado.includes('{resultado_missao}') || resultadoFormatado.includes('{action_value}')) {
-                    statusResultado = '❓ VARIÁVEL DO BOT QUEBRADA';
-                } else if (resultadoFormatado.includes('vitoria')) {
+                if (resultadoFormatado.includes('vitoria') || resultadoFormatado.includes('🏆')) {
                     statusResultado = '🏆 VITÓRIA';
-                } else if (resultadoFormatado.includes('derrota')) {
-                    statusResultado = '💀 DERROTA';
-                } else {
-                    statusResultado = `📊 ${String(resultado).toUpperCase()}`;
+                    corEmbed = '#2ecc71'; // Verde
+                    iconeEmbed = 'https://discordapp.net'; // Coloque o link da coroa aqui
                 }
-            } else {
-                statusResultado = '❓ NÃO ENVIADO PELO BOT';
             }
             
-            let relatorio = `🏁 **AÇÃO ENCERRADA • RELATÓRIO OFICIAL**\n\n`;
-            relatorio += `> ⚔️ **Operação realizada:** \`${evento.tipoAcao || "Não informado"}\`\n`;
-            // CORRIGIDO: Removido o emoji fixo antigo que quebrava o visual
-            relatorio += `> **Resultado:** \`${statusResultado}\`\n\n`;
-            relatorio += `🎖️ **OPERACIONAIS PARTICIPANTES:**\n`;
+            let relatorioTexto = `🏁 **AÇÃO ENCERRADA • RELATÓRIO OFICIAL**\n\n`;
+            relatorioTexto += `> ⚔️ **Operação realizada:** \`${evento.tipoAcao || "Não informado"}\`\n`;
+            relatorioTexto += `> **Resultado:** \`${statusResultado}\`\n\n`;
+            relatorioTexto += `🎖️ **OPERACIONAIS PARTICIPANTES:**\n`;
             
             if (evento.membros.length === 0) {
-                relatorio += `*Nenhum operacional assinou a lista.*`;
+                relatorioTexto += `*Nenhum operacional assinou a lista.*`;
             } else {
                 evento.membros.forEach((membro, index) => {
-                    relatorio += `\`${index + 1} -\` <@${membro.id}>\n`;
+                    relatorioTexto += `\`${index + 1} -\` <@${membro.id}>\n`;
                 });
             }
             
+            // Monta a resposta estruturada para o Botghost ler os campos separados
+            const respostaEstruturada = {
+                texto: relatorioTexto,
+                cor: corEmbed,
+                icone: iconeEmbed
+            };
+
+            ultimosRelatorios[guildId] = respostaEstruturada;
             delete eventosComReserva[guildId];
-            return res.send(relatorio);
+            return res.json(respostaEstruturada);
         }
         return res.send(gerarPainelComReserva(guildId));
     } catch (e) { return res.status(500).send("❌ Erro interno."); }
 });
 
 // ==========================================
-// ROTA ANTIGA (Mantida estável para o Bot Antigo)
+// ROTA ANTIGA (Mantida estável)
 // ==========================================
 const gerarPainelAntigo = (guildId) => {
     const evento = eventosAntigos[guildId];
