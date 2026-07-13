@@ -121,9 +121,11 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
         if (acao === 'encerrar') {
             let statusResultado = '💀 DERROTA';
             let corEmbed = '#e74c3c';
-            // URLs purificadas e simplificadas direto para o arquivo bruto do GIF
             let iconeEmbed = 'https://discordapp.com';
             let rotuloValor = 'Valor Recebido'; 
+            
+            // Link do novo banner de Derrota gerado
+            let bannerEmbed = 'https://imgur.com';
 
             if (resultado) {
                 const resultadoFormatado = String(resultado).trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -133,6 +135,9 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
                     corEmbed = '#2ecc71';
                     iconeEmbed = 'https://discordapp.com';
                     rotuloValor = 'Valor Ganho'; 
+                    
+                    // Link do novo banner de Vitória gerado
+                    bannerEmbed = 'https://imgur.com';
                 }
             }
             
@@ -158,7 +163,8 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
             const respostaEstruturada = {
                 texto: relatorioTexto,
                 cor: corEmbed,
-                icone: iconeEmbed
+                icone: iconeEmbed,
+                banner: bannerEmbed // Novo campo adicionado para o Botghost ler
             };
 
             ultimosRelatorios[guildId] = respostaEstruturada;
