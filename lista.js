@@ -19,7 +19,7 @@ const gerarPainelComReserva = (guildId) => {
     let texto = "⚡ **PAINEL DE OPERAÇÕES OFICIAIS (NOVO)**\n\n";
     texto += "📝 **Informações da Ação Atual:**\n";
     texto += "> ⚔️ **Tipo De Ação:** `" + evento.tipoAcao + "`\n";
-    texto += "> 👥 **Contingente Máx:** `" + evento.contingenteMax + " Operacionais`\n";
+    texto += "> 👥 **Contingente Máx:** `" + evento.contingenteMax + " Membros`\n";
     texto += "> 🔫 **Armamento Recomendado:** `" + evento.armamento + "`\n";
     texto += "> 📅 **Data & Horário:** `" + evento.dataHorario + "`\n";
     texto += "> 🏰 **Apresentação no QG:** `" + evento.horarioQg + "`\n\n";
@@ -53,7 +53,7 @@ const gerarPainelComReserva = (guildId) => {
 
     texto += "\n\n⏳ **FILA DE RESERVA VIAVEL (MÁX 5):**\n";
     if (evento.reserva.length === 0) {
-        texto += "*Nenhum operacional na espera por vagas.*";
+        texto += "*Nenhum membro na espera por vagas.*";
     } else {
         evento.reserva.forEach((membro, index) => {
             texto += "`" + (index + 1) + " -` <@" + membro.id + ">\n";
@@ -121,8 +121,8 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
         if (acao === 'encerrar') {
             let statusResultado = '💀 DERROTA';
             let corEmbed = '#e74c3c';
-            // Links purificados direto do CDN para carregar 100% nas miniaturas do Discord
-            let iconeEmbed = 'https://discordapp.com';
+            // URLs de imagens PNG universais hospedadas externamente para aceitação total no Discord
+            let iconeEmbed = 'https://imgur.com'; 
             let rotuloValor = 'Valor Recebido'; 
 
             if (resultado) {
@@ -131,7 +131,7 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
                 if (resultadoFormatado.includes('vitoria') || resultadoFormatado.includes('🏆')) {
                     statusResultado = '🏆 VITÓRIA';
                     corEmbed = '#2ecc71';
-                    iconeEmbed = 'https://discordapp.com';
+                    iconeEmbed = 'https://imgur.com'; 
                     rotuloValor = 'Valor Ganho'; 
                 }
             }
@@ -145,10 +145,10 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
             relatorioTexto += "> 💰 **" + rotuloValor + ":** `" + valorFinalExibido + "`\n"; 
             relatorioTexto += "> 👤 **Finalizado por:** <@" + (userId || "ID ausente") + ">\n";
             relatorioTexto += "> 📅 **Data & Horário:** `" + dataHoraFechamento + "`\n\n";
-            relatorioTexto += "🎖️ **OPERACIONAIS PARTICIPANTES:**\n";
+            relatorioTexto += "🎖️ **MEMBROS PARTICIPANTES:**\n";
             
             if (evento.membros.length === 0) {
-                relatorioTexto += "*Nenhum operacional assinou a lista.*";
+                relatorioTexto += "*Nenhum membro assinou a lista.*";
             } else {
                 evento.membros.forEach((membro, index) => {
                     relatorioTexto += "`" + (index + 1) + " -` <@" + membro.id + ">\n";
