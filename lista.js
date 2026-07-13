@@ -113,13 +113,12 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
                 }
                 return res.send(gerarPainelComReserva(guildId));
             }
-            return res.status(400).send("⚠️ Você não está inscrito em nenhuma das internacionais listas.");
+            return res.status(400).send("⚠️ Você não está inscrito em nenhuma das listas.");
         }
 
         if (acao === 'encerrar') {
             let statusResultado = '💀 DERROTA';
 
-            // Se o campo resultado existir e for válido
             if (resultado) {
                 const resultadoFormatado = String(resultado)
                     .trim()
@@ -127,15 +126,24 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
                     .normalize("NFD")
                     .replace(/[\u0300-\u036f]/g, "");
                 
-                // Mapeamento Inteligente: Aceita 'vitoria' ou trata o envio literal quebrado do builder
-                if (resultadoFormatado.includes('vitoria') || resultadoFormatado.includes('{resultado_missao}')) {
+                // Análise e tratamento do resultado recebido do bot
+                if (resultadoFormatado.includes('{resultado_missao}') || resultadoFormatado.includes('{action_value}')) {
+                    statusResultado = '❓ VARIÁVEL DO BOT QUEBRADA';
+                } else if (resultadoFormatado.includes('vitoria')) {
                     statusResultado = '🏆 VITÓRIA';
+                } else if (resultadoFormatado.includes('derrota')) {
+                    statusResultado = '💀 DERROTA';
+                } else {
+                    statusResultado = `📊 ${String(resultado).toUpperCase()}`;
                 }
+            } else {
+                statusResultado = '❓ NÃO ENVIADO PELO BOT';
             }
             
             let relatorio = `🏁 **AÇÃO ENCERRADA • RELATÓRIO OFICIAL**\n\n`;
             relatorio += `> ⚔️ **Operação realizada:** \`${evento.tipoAcao || "Não informado"}\`\n`;
-            relatorio += `> 🟢 **Resultado:** \`${statusResultado}\`\n\n`;
+            // CORRIGIDO: Removido o emoji fixo antigo que quebrava o visual
+            relatorio += `> **Resultado:** \`${statusResultado}\`\n\n`;
             relatorio += `🎖️ **OPERACIONAIS PARTICIPANTES:**\n`;
             
             if (evento.membros.length === 0) {
@@ -146,7 +154,6 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
                 });
             }
             
-            // Remove o evento do banco em memória após montar o relatório com sucesso
             delete eventosComReserva[guildId];
             return res.send(relatorio);
         }
