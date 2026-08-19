@@ -86,19 +86,19 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
         carregarDadosDoDisco();
 
         let { guildId, userId, username, acao, tipoAcao, contingenteMax, armamento, dataHorario, horarioQg, resultado, valorGanho } = req.body;
-        
-        // CORREÇÃO MESTRE: Se o BotGhost não enviar o guildId nas ações manuais, 
-        // nós pegamos o ID da única lista ativa guardada no arquivo local para não bugar!
-        if (!guildId || guildId === "undefined") {
-            const chavesAtivas = Object.keys(eventosComReserva);
-            if (chavesAtivas.length > 0) {
-                guildId = chavesAtivas[0];
+
+        // RESOLUÇÃO DEFINITIVA: Se o guildId vier indefinido ou quebrado do BotGhost,
+        // o código busca o ID correto da lista salva no disco para não dar o erro de "Inativa"
+        if (!guildId || guildId === "undefined" || String(guildId).includes('{')) {
+            const chavesSalvas = Object.keys(eventosComReserva);
+            if (chavesSalvas.length > 0) {
+                guildId = chavesSalvas[0];
             } else {
-                return res.status(400).send("❌ ID do servidor ausente.");
+                return res.status(400).send("❌ ID do servidor ausente ou nenhuma lista configurada.");
             }
         }
 
-        // Identifica e isola o ID do usuário selecionado no menu Staff
+        // Isola o usuário selecionado no menu Staff
         let idAlvo = userId;
         if (req.body.values && req.body.values.length > 0 && req.body.values !== guildId) {
             idAlvo = req.body.values;
@@ -106,7 +106,7 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
             idAlvo = req.body.selected_option;
         }
 
-        // 1. CRIAÇÃO OFICIAL DO PAINEL PELA STAFF
+        // CONFIGURAÇÃO INICIAL (Chamada pela Staff ao criar o painel)
         if (acao === 'configurar_painel') {
             const maxVagas = parseInt(String(contingenteMax).replace(/[^\d]/g, '')) || 10;
             eventosComReserva[guildId] = {
@@ -126,12 +126,8 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
             return res.json(ultimosRelatorios[guildId]);
         }
 
-        // BLOQUEIO TOTAL CONTRA RESET: Se o painel já existe em disco, nós NUNCA mais permitimos 
-        // que rotas de inclusão/botões alterem os valores de cabeçalho ou criem listas fantasmas de 7 vagas!
+        // Se mesmo buscando no disco a lista não for encontrada
         if (!eventosComReserva[guildId]) {
-            if (acao === 'encerrar') {
-                return res.status(400).send("❌ Erro ao buscar os dados da lista ativa para o relatório.");
-            }
             return res.status(400).send("❌ Nenhuma operação ativa encontrada na memória.");
         }
         
@@ -141,7 +137,7 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
         if (acao === 'entrar' || acao === 'adicionar_manual') {
             const idParaAdicionar = (acao === 'adicionar_manual') ? idAlvo : userId;
 
-            if (!idParaAdicionar || idParaAdicionar === guildId) {
+            if (!idParaAdicionar || idParaAdicionar === guildId || String(idParaAdicionar).includes('{')) {
                 return res.status(400).send("❌ ID do usuário inválido ou ausente.");
             }
 
@@ -177,7 +173,7 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
         if (acao === 'sair' || acao === 'remover_manual') {
             const idParaRemover = (acao === 'remover_manual') ? idAlvo : userId;
 
-            if (!idParaRemover || idParaRemover === guildId) {
+            if (!idParaRemover || idParaRemover === guildId || String(idParaRemover).includes('{')) {
                 return res.status(400).send("❌ ID do usuário inválido ou ausente.");
             }
 
@@ -228,7 +224,6 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
             relatorioTexto += "> 🟢 **Resultado:** `" + statusResultado + "`\n";
             relatorioTexto += "> 💰 " + rotuloValor + ": " + valorFinalExibido + "\n";
             relatorioTexto += "> 👤 Finalizado por: <@" + (userId || "ID ausente") + "\n";
-            relatorioTexto += "> 📅 Data & Horário: " + dataHoraFechamento + "\n\n";
             relatorioTexto += "🎖️ MEMBROS PARTICIPANTES:\n";
 
             if (evento.membros.length === 0) {
