@@ -88,10 +88,11 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
         let { guildId, userId, username, acao, tipoAcao, contingenteMax, armamento, dataHorario, horarioQg, resultado, valorGanho } = req.body;
         if (!guildId) return res.status(400).send("❌ ID do servidor ausente.");
 
-        if (req.body.values && req.body.values.length > 0) {
-            if (req.body.values !== guildId) userId = req.body.values;
+        let idAlvo = userId;
+        if (req.body.values && req.body.values.length > 0 && req.body.values !== guildId) {
+            idAlvo = req.body.values;
         } else if (req.body.selected_option && req.body.selected_option !== guildId) {
-            userId = req.body.selected_option;
+            idAlvo = req.body.selected_option;
         }
 
         if (acao === 'configurar_painel') {
@@ -133,24 +134,39 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
 
         // --- AÇÃO: ADICIONAR MANUAL ---
         if (acao === 'entrar' || acao === 'adicionar_manual') {
-            if (!userId || userId === guildId) {
+            const idParaAdicionar = (acao === 'adicionar_manual') ? idAlvo : userId;
+
+            if (!idParaAdicionar || idParaAdicionar === guildId) {
                 return res.status(400).send("❌ ID do usuário inválido ou ausente.");
             }
 
             if (!evento.membros) evento.membros = [];
             if (!evento.reserva) evento.reserva = [];
 
-            if (evento.membros.some(m => String(m.id) === String(userId)) || evento.reserva.some(m => String(m.id) === String(userId))) {
+            if (evento.membros.some(m => String(m.id) === String(idParaAdicionar)) || evento.reserva.some(m => String(m.id) === String(idParaAdicionar))) {
                 return res.send(gerarPainelComReserva(guildId));
             }
 
+            // GUARDA A ORDEM REAL: Adiciona um marcador de tempo (timestamp) para sabermos quem entrou primeiro
+            const novoMembro = { 
+                id: String(idParaAdicionar), 
+                username: username || "Membro", 
+                inseridoEm: Date.now() 
+            };
+
             if (evento.membros.length < evento.contingenteMax) {
-                evento.membros.push({ id: String(userId), username: username || "Membro" });
+                evento.membros.push(novoMembro);
+                
+                // ORDENAÇÃO FORÇADA: Garante que a lista siga a ordem de chegada cronológica
+                evento.membros.sort((a, b) => (a.inseridoEm || 0) - (b.inseridoEm || 0));
+                
                 salvarDadosNoDisco();
                 return res.send(gerarPainelComReserva(guildId));
             } 
             if (evento.reserva.length < 5) {
-                evento.reserva.push({ id: String(userId), username: username || "Membro" });
+                evento.reserva.push(novoMembro);
+                evento.reserva.sort((a, b) => (a.inseridoEm || 0) - (b.inseridoEm || 0));
+                
                 salvarDadosNoDisco();
                 return res.send(gerarPainelComReserva(guildId));
             }
@@ -159,24 +175,28 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
 
         // --- AÇÃO: REMOVER MANUAL ---
         if (acao === 'sair' || acao === 'remover_manual') {
-            if (!userId || userId === guildId) {
+            const idParaRemover = (acao === 'remover_manual') ? idAlvo : userId;
+
+            if (!idParaRemover || idParaRemover === guildId) {
                 return res.status(400).send("❌ ID do usuário inválido ou ausente.");
             }
 
-            const indexReserva = evento.reserva.findIndex(m => String(m.id) === String(userId));
+            const indexReserva = evento.reserva.findIndex(m => String(m.id) === String(idParaRemover));
             if (indexReserva !== -1) {
                 evento.reserva.splice(indexReserva, 1);
                 salvarDadosNoDisco();
                 return res.send(gerarPainelComReserva(guildId));
             }
 
-            const indexPrincipal = evento.membros.findIndex(m => String(m.id) === String(userId));
+            const indexPrincipal = evento.membros.findIndex(m => String(m.id) === String(idParaRemover));
             if (indexPrincipal !== -1) {
                 evento.membros.splice(indexPrincipal, 1);
                 if (evento.reserva.length > 0) {
                     const primeiroDaReserva = evento.reserva.shift();
                     evento.membros.push(primeiroDaReserva);
                 }
+                // Reordena após a remoção para manter a integridade cronológica
+                evento.membros.sort((a, b) => (a.inseridoEm || 0) - (b.inseridoEm || 0));
                 salvarDadosNoDisco();
                 return res.send(gerarPainelComReserva(guildId));
             }
@@ -207,14 +227,15 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
             let relatorioTexto = "🏁 **AÇÃO ENCERRADA • RELATÓRIO OFICIAL**\n\n";
             relatorioTexto += "> ⚔️ **Operação realizada:** `" + (evento.tipoAcao || "Não informado") + "`\n";
             relatorioTexto += "> 🟢 **Resultado:** `" + statusResultado + "`\n";
-            relatorioTexto += "> 💰 **" + rotuloValor + ":** `" + valorFinalExibido + "`\n"; 
-            relatorioTexto += "> 👤 **Finalizado por:** <@" + (userId || "ID ausente") + ">\n";
-            relatorioTexto += "> 📅 **Data & Horário:** `" + dataHoraFechamento + "`\n\n";
-            relatorioTexto += "🎖️ **MEMBROS PARTICIPANTES:**\n";
-            
+            relatorioTexto += "> 💰 " + rotuloValor + ": " + valorFinalExibido + "\n";
+            relatorioTexto += "> 👤 Finalizado por: <@" + (userId || "ID ausente") + ">\n";
+            relatorioTexto += "> 📅 Data & Horário: " + dataHoraFechamento + "\n\n";
+            relatorioTexto += "🎖️ MEMBROS PARTICIPANTES:\n";
+
             if (evento.membros.length === 0) {
-                relatorioTexto += "*Nenhum membro assinou a lista.*";
+                relatorioTexto += "Nenhum membro assinou a lista.";
             } else {
+                evento.membros.sort((a, b) => (a.inseridoEm || 0) - (b.inseridoEm || 0));
                 evento.membros.forEach((membro, index) => {
                     relatorioTexto += "" + (index + 1) + " - <@" + membro.id + ">\n";
                 });
