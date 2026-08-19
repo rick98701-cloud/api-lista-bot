@@ -69,22 +69,10 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
         let { guildId, acao, tipoAcao, contingenteMax, armamento, dataHorario, horarioQg, resultado, valorGanho } = req.body;
         if (!guildId) return res.status(400).send("❌ ID do servidor ausente.");
 
-        // CAPTURA AVANÇADA DE USUÁRIO (Lê todas as formas possíveis que o BotGhost pode enviar)
-        let userId = req.body.selecionado_id || req.body.staffadd_id || req.body.selected_user_id || req.body.user_id;
-        let username = req.body.selecionado_username || req.body.staffadd_username || req.body.selected_user_name || req.body.user_username || "Membro";
+        let userId = req.body.user_id || req.body.selecionado_id || req.body.staffadd_id || req.body.selected_user_id;
+        let username = req.body.user_username || req.body.selecionado_username || req.body.staffadd_username || "Membro";
 
-        // Se o BotGhost enviar logs brutos de seleção por array
-        if (req.body.values && req.body.values.length > 0) {
-            userId = req.body.values[0];
-        }
-
-        // CORREÇÃO DE SEGURANÇA: Se o ID vier como texto literal '{staffadd_id}', usamos o ID do autor para não quebrar a exibição
-        if (!userId || String(userId).includes('{')) {
-            userId = req.body.user_id || req.body.author_id || "00000000000000000";
-            username = req.body.user_username || "Membro";
-        }
-
-        if (acao === 'configurar_painel' || tipoAcao || contingenteMax) {
+        if (acao === 'configurar_painel') {
             const maxVagas = parseInt(String(contingenteMax || 3).replace(/[^\d]/g, '')) || 3;
             
             const membrosAtuais = eventosComReserva[guildId] ? eventosComReserva[guildId].membros : [];
@@ -107,29 +95,26 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
         }
 
         if (!eventosComReserva[guildId]) {
-            eventosComReserva[guildId] = {
-                tipoAcao: "Operação em Andamento", 
-                contingenteMax: 3, 
-                armamento: "Padrão",
-                dataHorario: obterDataHoraBrasilia(), 
-                horarioQg: "No QG", 
-                membros: [], 
-                reserva: []
-            };
+            return res.status(400).send("❌ Não existe nenhuma operação ativa configurada.");
         }
         
         const evento = eventosComReserva[guildId];
 
         if (acao === 'entrar' || acao === 'adicionar_manual') {
+            // Se o ID recebido for inválido ou for o texto puro da variável do BotGhost, rejeita antes de poluir a lista
+            if (!userId || String(userId).includes('{')) {
+                return res.status(400).send("❌ O BotGhost falhou ao enviar o ID do usuário selecionado. Verifique o JSON.");
+            }
+
             if (evento.membros.some(m => m.id === userId) || evento.reserva.some(m => m.id === userId)) {
                 return res.status(400).send("⚠️ Este usuário já está inscrito nesta lista de ação!");
             }
             if (evento.membros.length < evento.contingenteMax) {
-                evento.membros.push({ id: userId, username: username || "Membro" });
+                evento.membros.push({ id: userId, username: username });
                 return res.send(gerarPainelComReserva(guildId));
             } 
             if (evento.reserva.length < 5) {
-                evento.reserva.push({ id: userId, username: username || "Membro" });
+                evento.reserva.push({ id: userId, username: username });
                 return res.send(gerarPainelComReserva(guildId));
             }
             return res.status(400).send("❌ A lista principal e a fila de reserva já estão lotadas!");
