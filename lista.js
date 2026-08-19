@@ -88,16 +88,14 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
         let { guildId, userId, username, acao, tipoAcao, contingenteMax, armamento, dataHorario, horarioQg, resultado, valorGanho } = req.body;
         if (!guildId) return res.status(400).send("❌ ID do servidor ausente.");
 
-        // TRATAMENTO INTELIGENTE DO MENU DE SELEÇÃO DO SEU FLUXO
-        // Evita que o ID da guilda (servidor) entre no lugar do ID do usuário selecionado
+        // Captura o ID do usuário selecionado no menu do seu fluxo visual
         if (req.body.values && req.body.values.length > 0) {
-            if (req.body.values !== guildId) {
-                userId = req.body.values;
-            }
+            if (req.body.values !== guildId) userId = req.body.values;
         } else if (req.body.selected_option && req.body.selected_option !== guildId) {
             userId = req.body.selected_option;
         }
 
+        // Se a ação for configurar_painel, cria um novo evento limpo
         if (acao === 'configurar_painel') {
             const maxVagas = parseInt(String(contingenteMax).replace(/[^\d]/g, '')) || 10;
             eventosComReserva[guildId] = {
@@ -117,37 +115,45 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
             return res.json(ultimosRelatorios[guildId]);
         }
 
-        // Mantém a lista atual intacta se ela já existir no arquivo local
-        if (!eventosComReserva[guildId] && acao !== 'encerrar') {
+        // CORREÇÃO CRÍTICA: Se já houver um evento gravado em arquivo para esta guilda, 
+        // nós SEMPRE puxamos os dados dele e NUNCA resetamos a lista antiga!
+        if (!eventosComReserva[guildId]) {
             eventosComReserva[guildId] = {
-                tipoAcao: tipoAcao || "Operação em Andamento", contingenteMax: parseInt(contingenteMax) || 3, armamento: armamento || "Padrão",
-                dataHorario: dataHorario || obterDataHoraBrasilia(), horarioQg: horarioQg || "No QG", membros: [], reserva: []
+                tipoAcao: tipoAcao || "Operação em Andamento", 
+                contingenteMax: parseInt(contingenteMax) || 3, 
+                armamento: armamento || "Padrão",
+                dataHorario: dataHorario || obterDataHoraBrasilia(), 
+                horarioQg: horarioQg || "No QG", 
+                membros: [], 
+                reserva: []
             };
         }
         
-        if (!eventosComReserva[guildId] && acao === 'encerrar') {
-            return res.status(400).send("❌ Erro ao buscar os dados da lista ativa para o relatório.");
-        }
-
         const evento = eventosComReserva[guildId];
 
         // --- AÇÃO: ADICIONAR MANUAL ---
         if (acao === 'entrar' || acao === 'adicionar_manual') {
-            // Proteção extra: se o ID do usuário capturado ainda for igual ao do servidor, rejeita para não limpar a lista legítima
-            if (userId === guildId || !userId) {
-                return res.status(400).send("❌ Falha ao processar o ID do usuário selecionado.");
+            if (!userId || userId === guildId) {
+                return res.status(400).send("❌ ID do usuário inválido ou ausente.");
             }
 
-            if (evento.membros.some(m => m.id === userId) || evento.reserva.some(m => m.id === userId)) {
-                return res.status(400).send("⚠️ Este usuário já está inscrito nesta lista de ação!");
+            // Garante a integridade dos arrays internos
+            if (!evento.membros) evento.membros = [];
+            if (!evento.reserva) evento.reserva = [];
+
+            // Se o usuário já estiver inserido em qualquer lista, mantém o painel atual íntegro e retorna aviso
+            if (evento.membros.some(m => String(m.id) === String(userId)) || evento.reserva.some(m => String(m.id) === String(userId))) {
+                return res.send(gerarPainelComReserva(guildId));
             }
+
+            // Adiciona respeitando a ordem sequencial das vagas
             if (evento.membros.length < evento.contingenteMax) {
-                evento.membros.push({ id: userId, username: username || "Membro" });
+                evento.membros.push({ id: String(userId), username: username || "Membro" });
                 salvarDadosNoDisco();
                 return res.send(gerarPainelComReserva(guildId));
             } 
             if (evento.reserva.length < 5) {
-                evento.reserva.push({ id: userId, username: username || "Membro" });
+                evento.reserva.push({ id: String(userId), username: username || "Membro" });
                 salvarDadosNoDisco();
                 return res.send(gerarPainelComReserva(guildId));
             }
@@ -156,17 +162,18 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
 
         // --- AÇÃO: REMOVER MANUAL ---
         if (acao === 'sair' || acao === 'remover_manual') {
-            if (userId === guildId || !userId) {
-                return res.status(400).send("❌ Falha ao processar o ID do usuário para remoção.");
+            if (!userId || userId === guildId) {
+                return res.status(400).send("❌ ID do usuário inválido ou ausente.");
             }
 
-            const indexReserva = evento.reserva.findIndex(m => m.id === userId);
+            const indexReserva = evento.reserva.findIndex(m => String(m.id) === String(userId));
             if (indexReserva !== -1) {
                 evento.reserva.splice(indexReserva, 1);
                 salvarDadosNoDisco();
                 return res.send(gerarPainelComReserva(guildId));
             }
-            const indexPrincipal = evento.membros.findIndex(m => m.id === userId);
+
+            const indexPrincipal = evento.membros.findIndex(m => String(m.id) === String(userId));
             if (indexPrincipal !== -1) {
                 evento.membros.splice(indexPrincipal, 1);
                 if (evento.reserva.length > 0) {
@@ -176,7 +183,7 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
                 salvarDadosNoDisco();
                 return res.send(gerarPainelComReserva(guildId));
             }
-            return res.status(400).send("⚠️ O usuário não está inscrito em nenhuma das listas.");
+            return res.send(gerarPainelComReserva(guildId));
         }
 
         if (acao === 'encerrar') {
