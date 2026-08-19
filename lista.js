@@ -37,7 +37,7 @@ const gerarPainelComReserva = (guildId) => {
     texto += "> ⚔️ **Tipo De Ação:** `" + evento.tipoAcao + "`\n";
     texto += "> 👥 **Contingente Máx:** `" + evento.contingenteMax + " Membros`\n";
     texto += "> 🔫 **Armamento Recomendado:** `" + evento.armamento + "`\n";
-    texto += "> 📅 **Data & Horário:** `" + evento.dataHorario + "`\n"; // Exibe a data travada do formulário
+    texto += "> 📅 **Data & Horário:** `" + evento.dataHorario + "`\n";
     texto += "> 🏰 **Apresentação no QG:** `" + evento.horarioQg + "`\n\n";
     texto += "⚠️ **Aviso:** Garanta os seus equipamentos and clique nos botões abaixo.\n";
     texto += "──────────────────────────────\n";
@@ -103,14 +103,13 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
             idAlvo = req.body.selected_option;
         }
 
-        // 1. CONFIGURAÇÃO INICIAL (Só aqui a data/hora e contingente são definidos!)
         if (acao === 'configurar_painel') {
             const maxVagas = parseInt(String(contingenteMax).replace(/[^\d]/g, '')) || 10;
             eventosComReserva[guildId] = {
                 tipoAcao: tipoAcao || "Não informado", 
                 contingenteMax: maxVagas, 
                 armamento: armamento || "Não informado",
-                dataHorario: dataHorario || "Não informado", // Salva o texto que você colocou no formulário
+                dataHorario: dataHorario || "Não informado", 
                 horarioQg: horarioQg || "Não informado", 
                 membros: [], 
                 reserva: []
@@ -123,7 +122,6 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
             return res.json(ultimosRelatorios[guildId]);
         }
 
-        // CORREÇÃO DA DATA: Se o evento já existe em disco, nós NÃO reescrevemos a data original do formulário
         if (!eventosComReserva[guildId]) {
             if (acao === 'encerrar') {
                 return res.status(400).send("❌ Erro ao buscar os dados da lista ativa para o relatório.");
@@ -142,7 +140,6 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
         
         const evento = eventosComReserva[guildId];
 
-        // --- AÇÃO: LIMPAR LISTA ---
         if (acao === 'limpar_lista') {
             evento.membros = [];
             evento.reserva = [];
@@ -150,7 +147,6 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
             return res.send(gerarPainelComReserva(guildId));
         }
 
-        // --- AÇÃO: ADICIONAR MANUAL ---
         if (acao === 'entrar' || acao === 'adicionar_manual') {
             const idParaAdicionar = (acao === 'adicionar_manual') ? idAlvo : userId;
 
@@ -186,7 +182,6 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
             return res.status(400).send("❌ A lista principal e a fila de reserva já estão lotadas!");
         }
 
-        // --- AÇÃO: REMOVER MANUAL ---
         if (acao === 'sair' || acao === 'remover_manual') {
             const idParaRemover = (acao === 'remover_manual') ? idAlvo : userId;
 
@@ -229,12 +224,14 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
                     corEmbed = '#2ecc71';
                     iconeEmbed = 'https://discordapp.com';
                     rotuloValor = 'Valor Ganho'; 
+                    bannerEmbed = 'https://imgur.com';
+                }
+            }
+            
             const valorFinalExibido = valorGanho ? "R$ " + valorGanho : "Não informado";
             const dataHoraFechamento = obterDataHoraBrasilia();
 
             let relatorioTexto = "🏁 **AÇÃO ENCERRADA • RELATÓRIO OFICIAL**\n\n";
-            relatorioTexto += "> ⚔️ **Operação realizada:** `" + (evento.tipoAcao || "Não informado") + "`\n";
-            relatorioTexto += "> 🟢 **Resultado:** `" + statusResultado + "`\n";
             relatorioTexto += "> 💰 **" + rotuloValor + ":** `" + valorFinalExibido + "`\n";
             relatorioTexto += "> 👤 **Finalizado por:** <@" + (userId || "ID ausente") + ">\n";
             relatorioTexto += "> 📅 **Data & Horário:** `" + dataHoraFechamento + "`\n\n";
