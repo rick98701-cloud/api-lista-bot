@@ -69,9 +69,9 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
         let { guildId, acao, tipoAcao, contingenteMax, armamento, dataHorario, horarioQg, resultado, valorGanho } = req.body;
         if (!guildId) return res.status(400).send("❌ ID do servidor ausente.");
 
-        // CAPTURA DO ID DO USUÁRIO USANDO O PADRÃO EXCLUSIVO DO BOTGHOST (user_id)
-        let userId = req.body.user_id || req.body.userId || req.body.selected_user_id;
-        let username = req.body.user_username || req.body.username || "Membro";
+        // PRIORIDADE: Pega o membro selecionado no menu (Peteka). Se não houver, pega o executor.
+        let userId = req.body.selecionado_id || req.body.selected_user_id || req.body.user_id;
+        let username = req.body.selecionado_username || req.body.selected_user_name || req.body.user_username || "Membro";
 
         if (acao === 'configurar_painel') {
             const maxVagas = parseInt(String(contingenteMax).replace(/[^\d]/g, '')) || 10;
@@ -95,12 +95,11 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
             return res.json(ultimosRelatorios[guildId]);
         }
 
+        // Se não houver painel ativo criado no comando original, avisa o usuário em vez de resetar as vagas para 10
         if (!eventosComReserva[guildId]) {
-            eventosComReserva[guildId] = {
-                tipoAcao: "Operação em Andamento", contingenteMax: 10, armamento: "Padrão",
-                dataHorario: obterDataHoraBrasilia(), horarioQg: "No QG", membros: [], reserva: []
-            };
+            return res.status(400).send("❌ Não existe nenhuma operação ativa configurada. Use o comando da Staff primeiro.");
         }
+        
         const evento = eventosComReserva[guildId];
 
         if (acao === 'entrar' || acao === 'adicionar_manual') {
