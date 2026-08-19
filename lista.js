@@ -66,14 +66,28 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
     try {
         console.log("📥 DADOS RECEBIDOS NA REQUISIÇÃO:", req.body);
 
-        const { guildId, userId, username, acao, tipoAcao, contingenteMax, armamento, dataHorario, horarioQg, resultado, valorGanho } = req.body;
+        // O BotGhost costuma enviar a seleção de membros dentro de um array ou variável específica.
+        // Vamos garantir que 'userId' receba o ID do membro SELECIONADO no menu.
+        let { guildId, userId, username, acao, tipoAcao, contingenteMax, armamento, dataHorario, horarioQg, resultado, valorGanho } = req.body;
+        
         if (!guildId) return res.status(400).send("❌ ID do servidor ausente.");
+
+        // Se o evento foi disparado por um menu de seleção de usuário do BotGhost:
+        if (req.body.selected_user_id) {
+            userId = req.body.selected_user_id; // Ajusta para a variável nativa de seleção do BotGhost
+            username = req.body.selected_user_name || "Membro";
+        }
 
         if (acao === 'configurar_painel') {
             const maxVagas = parseInt(String(contingenteMax).replace(/[^\d]/g, '')) || 10;
             eventosComReserva[guildId] = {
-                tipoAcao: tipoAcao || "Não informado", contingenteMax: maxVagas, armamento: armamento || "Não informado",
-                dataHorario: dataHorario || "Não informado", horarioQg: horarioQg || "Não informado", membros: [], reserva: []
+                tipoAcao: tipoAcao || "Não informado", 
+                contingenteMax: maxVagas, 
+                armamento: armamento || "Não informado",
+                dataHorario: dataHorario || "Não informado", 
+                horarioQg: horarioQg || "Não informado", 
+                membros: [], 
+                reserva: []
             };
             return res.send(gerarPainelComReserva(guildId));
         }
@@ -82,96 +96,20 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
             return res.json(ultimosRelatorios[guildId]);
         }
 
-        if (!eventosComReserva[guildId]) return res.status(400).send("❌ Não existe nenhuma operação ativa configurada.");
-        const evento = eventosComReserva[guildId];
-
-        // --- AÇÃO: ADICIONAR MANUAL (OU BOTÃO ENTRAR) ---
-        if (acao === 'entrar' || acao === 'adicionar_manual') {
-            if (evento.membros.some(m => m.id === userId) || evento.reserva.some(m => m.id === userId)) {
-                return res.status(400).send("⚠️ Este usuário já está inscrito nesta lista de ação!");
-            }
-            if (evento.membros.length < evento.contingenteMax) {
-                evento.membros.push({ id: userId, username: username || "Membro" });
-                return res.send(gerarPainelComReserva(guildId));
-            } 
-            if (evento.reserva.length < 5) {
-                evento.reserva.push({ id: userId, username: username || "Membro" });
-                return res.send(gerarPainelComReserva(guildId));
-            }
-            return res.status(400).send("❌ A lista principal e a fila de reserva já estão lotadas!");
-        }
-
-        // --- AÇÃO: REMOVER MANUAL (OU BOTÃO SAIR) ---
-        if (acao === 'sair' || acao === 'remover_manual') {
-            const indexReserva = evento.reserva.findIndex(m => m.id === userId);
-            if (indexReserva !== -1) {
-                evento.reserva.splice(indexReserva, 1);
-                return res.send(gerarPainelComReserva(guildId));
-            }
-            const indexPrincipal = evento.membros.findIndex(m => m.id === userId);
-            if (indexPrincipal !== -1) {
-                evento.membros.splice(indexPrincipal, 1);
-                // Se removeu da principal, puxa automaticamente o primeiro da reserva
-                if (evento.reserva.length > 0) {
-                    const primeiroDaReserva = evento.reserva.shift();
-                    evento.membros.push(primeiroDaReserva);
-                }
-                return res.send(gerarPainelComReserva(guildId));
-            }
-            return res.status(400).send("⚠️ O usuário não está inscrito em nenhuma das listas.");
-        }
-
-        if (acao === 'encerrar') {
-            let statusResultado = '💀 DERROTA';
-            let corEmbed = '#e74c3c';
-            let iconeEmbed = 'https://discordapp.com';
-            let rotuloValor = 'Valor Recebido'; 
-            let bannerEmbed = 'https://imgur.com';
-
-            if (resultado) {
-                const resultadoFormatado = String(resultado).trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-                if (resultadoFormatado.includes('vitoria') || resultadoFormatado.includes('🏆')) {
-                    statusResultado = '🏆 VITÓRIA';
-                    corEmbed = '#2ecc71';
-                    iconeEmbed = 'https://discordapp.com';
-                    rotuloValor = 'Valor Ganho'; 
-                    bannerEmbed = 'https://imgur.com';
-                }
-            }
-            
-            const valorFinalExibido = valorGanho ? "R$ " + valorGanho : "Não informado";
-            const dataHoraFechamento = obterDataHoraBrasilia();
-
-            let relatorioTexto = "🏁 **AÇÃO ENCERRADA • RELATÓRIO OFICIAL**\n\n";
-            relatorioTexto += "> ⚔️ **Operação realizada:** `" + (evento.tipoAcao || "Não informado") + "`\n";
-            relatorioTexto += "> 🟢 **Resultado:** `" + statusResultado + "`\n";
-            relatorioTexto += "> 💰 **" + rotuloValor + ":** `" + valorFinalExibido + "`\n"; 
-            relatorioTexto += "> 👤 **Finalizado por:** <@" + (userId || "ID ausente") + ">\n";
-            relatorioTexto += "> 📅 **Data & Horário:** `" + dataHoraFechamento + "`\n\n";
-            relatorioTexto += "🎖️ **MEMBROS PARTICIPANTES:**\n";
-            
-            if (evento.membros.length === 0) {
-                relatorioTexto += "*Nenhum membro assinou a lista.*";
-            } else {
-                evento.membros.forEach((membro, index) => {
-                    relatorioTexto += "`" + (index + 1) + " -` <@" + membro.id + ">\n";
-                });
-            }
-            
-            const respostaEstruturada = {
-                texto: relatorioTexto,
-                cor: corEmbed,
-                icone: iconeEmbed,
-                banner: bannerEmbed
+        // SE O EVENTO NÃO EXISTE NA MEMÓRIA DO SCRIPT, VAMOS CRIAR UM TEMPORÁRIO PARA NÃO TRAVAR O BOT
+        if (!eventosComReserva[guildId]) {
+            eventosComReserva[guildId] = {
+                tipoAcao: "Operação em Andamento", 
+                contingenteMax: 10, 
+                armamento: "Padrão",
+                dataHorario: obterDataHoraBrasilia(), 
+                horarioQg: "No QG", 
+                membros: [], 
+                reserva: []
             };
-
-            ultimosRelatorios[guildId] = respostaEstruturada;
-            delete eventosComReserva[guildId];
-            return res.json(respostaEstruturada);
         }
-        return res.send(gerarPainelComReserva(guildId));
-    } catch (e) { return res.status(500).send("❌ Erro interno."); }
-});
+        
+        const evento = eventosComReserva[guildId];
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log("🚀 Servidor online na porta " + PORT));
