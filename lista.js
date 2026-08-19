@@ -88,14 +88,12 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
         let { guildId, userId, username, acao, tipoAcao, contingenteMax, armamento, dataHorario, horarioQg, resultado, valorGanho } = req.body;
         if (!guildId) return res.status(400).send("❌ ID do servidor ausente.");
 
-        // Captura o ID do usuário selecionado no menu do seu fluxo visual
         if (req.body.values && req.body.values.length > 0) {
             if (req.body.values !== guildId) userId = req.body.values;
         } else if (req.body.selected_option && req.body.selected_option !== guildId) {
             userId = req.body.selected_option;
         }
 
-        // Se a ação for configurar_painel, cria um novo evento limpo
         if (acao === 'configurar_painel') {
             const maxVagas = parseInt(String(contingenteMax).replace(/[^\d]/g, '')) || 10;
             eventosComReserva[guildId] = {
@@ -115,15 +113,15 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
             return res.json(ultimosRelatorios[guildId]);
         }
 
-        // CORREÇÃO CRÍTICA: Se já houver um evento gravado em arquivo para esta guilda, 
-        // nós SEMPRE puxamos os dados dele e NUNCA resetamos a lista antiga!
+        // CORREÇÃO: Se o evento já existe em disco, mantemos rigorosamente os valores originais carregados do arquivo!
+        // Caso contrário, se for uma nova requisição órfã, usamos valores temporários seguros
         if (!eventosComReserva[guildId]) {
             eventosComReserva[guildId] = {
                 tipoAcao: tipoAcao || "Operação em Andamento", 
-                contingenteMax: parseInt(contingenteMax) || 3, 
+                contingenteMax: parseInt(contingenteMax) || 33, // Assume 33 como contingente de contingência padrão
                 armamento: armamento || "Padrão",
                 dataHorario: dataHorario || obterDataHoraBrasilia(), 
-                horarioQg: horarioQg || "No QG", 
+                horarioQg: "No QG", 
                 membros: [], 
                 reserva: []
             };
@@ -137,16 +135,13 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
                 return res.status(400).send("❌ ID do usuário inválido ou ausente.");
             }
 
-            // Garante a integridade dos arrays internos
             if (!evento.membros) evento.membros = [];
             if (!evento.reserva) evento.reserva = [];
 
-            // Se o usuário já estiver inserido em qualquer lista, mantém o painel atual íntegro e retorna aviso
             if (evento.membros.some(m => String(m.id) === String(userId)) || evento.reserva.some(m => String(m.id) === String(userId))) {
                 return res.send(gerarPainelComReserva(guildId));
             }
 
-            // Adiciona respeitando a ordem sequencial das vagas
             if (evento.membros.length < evento.contingenteMax) {
                 evento.membros.push({ id: String(userId), username: username || "Membro" });
                 salvarDadosNoDisco();
@@ -231,12 +226,14 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
             };
 
             ultimosRelatorios[guildId] = respostaEstruturada;
-            delete eventosComReserva[guildId];
-            salvarDadosNoDisco();
-            return res.json(respostaEstruturada);
-        }
-        return res.send(gerarPainelComReserva(guildId));
-    } catch (e) { return res.status(500).send("❌ Erro interno."); }
+        delete eventosComReserva[guildId];
+        salvarDadosNoDisco();
+        return res.json(respostaEstruturada);
+    }
+    return res.send(gerarPainelComReserva(guildId));
+} catch (e) {
+    return res.status(500).send("❌ Erro interno.");
+}
 });
 
 const PORT = process.env.PORT || 3000;
