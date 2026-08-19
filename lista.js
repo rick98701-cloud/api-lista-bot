@@ -1,12 +1,11 @@
 const express = require('express');
 const app = express();
 app.use(express.json());
-const fs = require('fs'); // Módulo nativo para salvar arquivos
+const fs = require('fs');
 
 let eventosComReserva = {};
 let ultimosRelatorios = {}; 
 
-// Carrega os dados salvos anteriormente ao iniciar o servidor para não dar erro de lista vazia
 if (fs.existsSync('eventos.json')) {
     try {
         eventosComReserva = JSON.parse(fs.readFileSync('eventos.json', 'utf8'));
@@ -84,13 +83,16 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
         let { guildId, userId, username, acao, tipoAcao, contingenteMax, armamento, dataHorario, horarioQg, resultado, valorGanho } = req.body;
         if (!guildId) return res.status(400).send("❌ ID do servidor ausente.");
 
-        // Se a requisição veio de um menu de seleção, o ID do membro vem dentro de 'values' ou 'selected_option'
+        // Captura o usuário selecionado no menu de forma direta
         if (req.body.values && req.body.values.length > 0) {
             userId = req.body.values;
             username = "Membro";
+            // Força a ação correta se ela vier em branco do BotGhost
+            if (!acao) acao = 'adicionar_manual'; 
         } else if (req.body.selected_option) {
             userId = req.body.selected_option;
             username = "Membro";
+            if (!acao) acao = 'adicionar_manual';
         }
 
         if (acao === 'configurar_painel') {
@@ -99,7 +101,7 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
                 tipoAcao: tipoAcao || "Não informado", contingenteMax: maxVagas, armamento: armamento || "Não informado",
                 dataHorario: dataHorario || "Não informado", horarioQg: horarioQg || "Não informado", membros: [], reserva: []
             };
-            salvarDadosNoDisco(); // Salva a nova configuração
+            salvarDadosNoDisco();
             return res.send(gerarPainelComReserva(guildId));
         }
 
@@ -107,28 +109,39 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
             return res.json(ultimosRelatorios[guildId]);
         }
 
-        if (!eventosComReserva[guildId]) return res.status(400).send("❌ Não existe nenhuma operação ativa configurada.");
+        // REMOÇÃO DA TRAVA: Se a memória limpou, o código cria o esqueleto na hora com as informações mantidas
+        if (!eventosComReserva[guildId]) {
+            eventosComReserva[guildId] = {
+                tipoAcao: tipoAcao || "Operação em Andamento", 
+                contingenteMax: parseInt(contingenteMax) || 3, 
+                armamento: armamento || "Padrão",
+                dataHorario: dataHorario || obterDataHoraBrasilia(), 
+                horarioQg: horarioQg || "No QG", 
+                membros: [], 
+                reserva: []
+            };
+        }
         const evento = eventosComReserva[guildId];
 
-        // --- AÇÃO: ADICIONAR MANUAL (OU BOTÃO ENTRAR) ---
+        // --- AÇÃO: ADICIONAR MANUAL ---
         if (acao === 'entrar' || acao === 'adicionar_manual') {
             if (evento.membros.some(m => m.id === userId) || evento.reserva.some(m => m.id === userId)) {
                 return res.status(400).send("⚠️ Este usuário já está inscrito nesta lista de ação!");
             }
             if (evento.membros.length < evento.contingenteMax) {
                 evento.membros.push({ id: userId, username: username || "Membro" });
-                salvarDadosNoDisco(); // Salva a lista atualizada
+                salvarDadosNoDisco();
                 return res.send(gerarPainelComReserva(guildId));
             } 
             if (evento.reserva.length < 5) {
                 evento.reserva.push({ id: userId, username: username || "Membro" });
-                salvarDadosNoDisco(); // Salva a reserva atualizada
+                salvarDadosNoDisco();
                 return res.send(gerarPainelComReserva(guildId));
             }
             return res.status(400).send("❌ A lista principal e a fila de reserva já estão lotadas!");
         }
 
-        // --- AÇÃO: REMOVER MANUAL (OU BOTÃO SAIR) ---
+        // --- AÇÃO: REMOVER MANUAL ---
         if (acao === 'sair' || acao === 'remover_manual') {
             const indexReserva = evento.reserva.findIndex(m => m.id === userId);
             if (indexReserva !== -1) {
@@ -195,7 +208,7 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
 
             ultimosRelatorios[guildId] = respostaEstruturada;
             delete eventosComReserva[guildId];
-            salvarDadosNoDisco(); // Limpa do disco já que encerrou
+            salvarDadosNoDisco();
             return res.json(respostaEstruturada);
         }
         return res.send(gerarPainelComReserva(guildId));
