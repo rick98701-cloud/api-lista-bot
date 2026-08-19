@@ -94,6 +94,7 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
             userId = req.body.selected_option;
         }
 
+        // 1. CONFIGURAÇÃO INICIAL DO PAINEL (Criação legítima pela Staff)
         if (acao === 'configurar_painel') {
             const maxVagas = parseInt(String(contingenteMax).replace(/[^\d]/g, '')) || 10;
             eventosComReserva[guildId] = {
@@ -113,10 +114,16 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
             return res.json(ultimosRelatorios[guildId]);
         }
 
+        // CORREÇÃO CRÍTICA: Se a operação NÃO existe de forma alguma na memória ou no arquivo eventos.json,
+        // só então ela usa um esqueleto temporário. Se ela JÁ EXISTIR, esse bloco é completamente ignorado!
         if (!eventosComReserva[guildId]) {
+            if (acao === 'encerrar') {
+                return res.status(400).send("❌ Erro ao buscar os dados da lista ativa para o relatório.");
+            }
+            const maxVagasFallback = parseInt(String(contingenteMax).replace(/[^\d]/g, '')) || 6;
             eventosComReserva[guildId] = {
                 tipoAcao: tipoAcao || "Operação em Andamento", 
-                contingenteMax: parseInt(contingenteMax) || 33, 
+                contingenteMax: maxVagasFallback, 
                 armamento: armamento || "Padrão",
                 dataHorario: dataHorario || obterDataHoraBrasilia(), 
                 horarioQg: "No QG", 
@@ -136,6 +143,7 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
             if (!evento.membros) evento.membros = [];
             if (!evento.reserva) evento.reserva = [];
 
+            // Se já está na lista, apenas retorna o painel sem alterar nada
             if (evento.membros.some(m => String(m.id) === String(userId)) || evento.reserva.some(m => String(m.id) === String(userId))) {
                 return res.send(gerarPainelComReserva(guildId));
             }
@@ -211,8 +219,8 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
             if (evento.membros.length === 0) {
                 relatorioTexto += "*Nenhum membro assinou a lista.*";
             } else {
-                evento.membros.forEach((membro, index) => {
-                    relatorioTexto += "`" + (index + 1) + " -` <@" + membro.id + ">\n";
+                                evento.membros.forEach((membro, index) => {
+                    relatorioTexto += "" + (index + 1) + " - <@" + membro.id + ">\n";
                 });
             }
             
@@ -230,8 +238,8 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
         }
         
         return res.send(gerarPainelComReserva(guildId));
-    } catch (e) { 
-        return res.status(500).send("❌ Erro interno."); 
+    } catch (e) {
+        return res.status(500).send("❌ Erro interno.");
     }
 });
 
