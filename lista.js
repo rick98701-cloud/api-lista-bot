@@ -82,19 +82,20 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
             return res.json(ultimosRelatorios[guildId]);
         }
 
-        if (!eventosComReserva[guildId]) return res.status(400).send("❌ Não existe nenhuma operação ativa configurada.");
+        if (!eventosComReserva[guildId]) return res.status(400).send("❌ Não existe nenhuma operação activa configurada.");
         const evento = eventosComReserva[guildId];
 
-        if (acao === 'entrar') {
+        // --- NOVA AÇÃO: ADICIONAR MANUALMENTE PELO RESPONSÁVEL ---
+        if (acao === 'entrar' || acao === 'adicionar_manual') {
             if (evento.membros.some(m => m.id === userId) || evento.reserva.some(m => m.id === userId)) {
-                return res.status(400).send("⚠️ Você já está inscrito nesta lista de ação!");
+                return res.status(400).send("⚠️ Este usuário já está inscrito nesta lista de ação!");
             }
             if (evento.membros.length < evento.contingenteMax) {
-                evento.membros.push({ id: userId, username: username });
+                evento.membros.push({ id: userId, username: username || "Membro" });
                 return res.send(gerarPainelComReserva(guildId));
             } 
             if (evento.reserva.length < 5) {
-                evento.reserva.push({ id: userId, username: username });
+                evento.reserva.push({ id: userId, username: username || "Membro" });
                 return res.send(gerarPainelComReserva(guildId));
             }
             return res.status(400).send("❌ A lista principal e a fila de reserva já estão lotadas!");
@@ -115,7 +116,7 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
                 }
                 return res.send(gerarPainelComReserva(guildId));
             }
-            return res.status(400).send("⚠️ Você não está inscrito em nenhuma das listas.");
+            return res.status(400).send("⚠️ O usuário não está inscrito em nenhuma das listas.");
         }
 
         if (acao === 'encerrar') {
@@ -123,20 +124,15 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
             let corEmbed = '#e74c3c';
             let iconeEmbed = 'https://discordapp.com';
             let rotuloValor = 'Valor Recebido'; 
-            
-            // Link do novo banner de Derrota gerado
             let bannerEmbed = 'https://imgur.com';
 
             if (resultado) {
                 const resultadoFormatado = String(resultado).trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-                
                 if (resultadoFormatado.includes('vitoria') || resultadoFormatado.includes('🏆')) {
                     statusResultado = '🏆 VITÓRIA';
                     corEmbed = '#2ecc71';
                     iconeEmbed = 'https://discordapp.com';
                     rotuloValor = 'Valor Ganho'; 
-                    
-                    // Link do novo banner de Vitória gerado
                     bannerEmbed = 'https://imgur.com';
                 }
             }
@@ -164,7 +160,7 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
                 texto: relatorioTexto,
                 cor: corEmbed,
                 icone: iconeEmbed,
-                banner: bannerEmbed // Novo campo adicionado para o Botghost ler
+                banner: bannerEmbed
             };
 
             ultimosRelatorios[guildId] = respostaEstruturada;
