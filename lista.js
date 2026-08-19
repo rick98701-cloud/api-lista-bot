@@ -1,9 +1,24 @@
 const express = require('express');
 const app = express();
 app.use(express.json());
+const fs = require('fs'); // Módulo nativo para salvar arquivos
 
 let eventosComReserva = {};
 let ultimosRelatorios = {}; 
+
+// Carrega os dados salvos anteriormente ao iniciar o servidor para não dar erro de lista vazia
+if (fs.existsSync('eventos.json')) {
+    try {
+        eventosComReserva = JSON.parse(fs.readFileSync('eventos.json', 'utf8'));
+        console.log("💾 OPERAÇÕES ATIVAS RECUPERADAS DO DISCO!");
+    } catch (err) { console.log("Erro ao ler eventos.json", err); }
+}
+
+const salvarDadosNoDisco = () => {
+    try {
+        fs.writeFileSync('eventos.json', JSON.stringify(eventosComReserva, null, 2), 'utf8');
+    } catch (err) { console.log("Erro ao salvar no disco", err); }
+};
 
 const obterDataHoraBrasilia = () => {
     return new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
@@ -69,9 +84,12 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
         let { guildId, userId, username, acao, tipoAcao, contingenteMax, armamento, dataHorario, horarioQg, resultado, valorGanho } = req.body;
         if (!guildId) return res.status(400).send("❌ ID do servidor ausente.");
 
-        // CORREÇÃO ESSENCIAL: Se a requisição veio de um menu de seleção, o ID do membro vem dentro de 'values'
+        // Se a requisição veio de um menu de seleção, o ID do membro vem dentro de 'values' ou 'selected_option'
         if (req.body.values && req.body.values.length > 0) {
-            userId = req.body.values[0]; // Captura o ID do usuário selecionado (ex: Peteka)
+            userId = req.body.values;
+            username = "Membro";
+        } else if (req.body.selected_option) {
+            userId = req.body.selected_option;
             username = "Membro";
         }
 
@@ -81,6 +99,7 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
                 tipoAcao: tipoAcao || "Não informado", contingenteMax: maxVagas, armamento: armamento || "Não informado",
                 dataHorario: dataHorario || "Não informado", horarioQg: horarioQg || "Não informado", membros: [], reserva: []
             };
+            salvarDadosNoDisco(); // Salva a nova configuração
             return res.send(gerarPainelComReserva(guildId));
         }
 
@@ -98,10 +117,12 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
             }
             if (evento.membros.length < evento.contingenteMax) {
                 evento.membros.push({ id: userId, username: username || "Membro" });
+                salvarDadosNoDisco(); // Salva a lista atualizada
                 return res.send(gerarPainelComReserva(guildId));
             } 
             if (evento.reserva.length < 5) {
                 evento.reserva.push({ id: userId, username: username || "Membro" });
+                salvarDadosNoDisco(); // Salva a reserva atualizada
                 return res.send(gerarPainelComReserva(guildId));
             }
             return res.status(400).send("❌ A lista principal e a fila de reserva já estão lotadas!");
@@ -112,19 +133,20 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
             const indexReserva = evento.reserva.findIndex(m => m.id === userId);
             if (indexReserva !== -1) {
                 evento.reserva.splice(indexReserva, 1);
+                salvarDadosNoDisco();
                 return res.send(gerarPainelComReserva(guildId));
             }
             const indexPrincipal = evento.membros.findIndex(m => m.id === userId);
             if (indexPrincipal !== -1) {
                 evento.membros.splice(indexPrincipal, 1);
-                // Se removeu da principal, puxa automaticamente o primeiro da reserva
                 if (evento.reserva.length > 0) {
                     const primeiroDaReserva = evento.reserva.shift();
                     evento.membros.push(primeiroDaReserva);
                 }
+                salvarDadosNoDisco();
                 return res.send(gerarPainelComReserva(guildId));
             }
-            return res.status(400).send("⚠️ O usuário não está inscrito in nenhuma das listas.");
+            return res.status(400).send("⚠️ O usuário não está inscrito em nenhuma das listas.");
         }
 
         if (acao === 'encerrar') {
@@ -173,6 +195,7 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
 
             ultimosRelatorios[guildId] = respostaEstruturada;
             delete eventosComReserva[guildId];
+            salvarDadosNoDisco(); // Limpa do disco já que encerrou
             return res.json(respostaEstruturada);
         }
         return res.send(gerarPainelComReserva(guildId));
