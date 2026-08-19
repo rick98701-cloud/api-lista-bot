@@ -69,15 +69,21 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
         let { guildId, userId, username, acao, tipoAcao, contingenteMax, armamento, dataHorario, horarioQg, resultado, valorGanho } = req.body;
         if (!guildId) return res.status(400).send("❌ ID do servidor ausente.");
 
-        if (req.body.selected_user_id) {
-            userId = req.body.selected_user_id; 
-            username = req.body.selected_user_name || "Membro";
+        // CORREÇÃO INTELIGENTE: Mapeia as variações comuns que o BotGhost envia no menu de membros
+        if (req.body.user_id) userId = req.body.user_id;
+        if (req.body.selected_user_id) userId = req.body.selected_user_id;
+        
+        if (req.body.user_username) username = req.body.user_username;
+        if (req.body.selected_user_name) username = req.body.selected_user_name;
+
+        // Se o BotGhost enviou o texto literal da variável por falha no painel, vamos limpar para não quebrar a menção
+        if (userId && String(userId).includes('{')) {
+            userId = req.body.author_id || req.body.executor_id || userId;
         }
 
         if (acao === 'configurar_painel') {
             const maxVagas = parseInt(String(contingenteMax).replace(/[^\d]/g, '')) || 10;
             
-            // CORREÇÃO: Busca se já existem listas na memória para não resetá-las do zero
             const membrosAtuais = eventosComReserva[guildId] ? eventosComReserva[guildId].membros : [];
             const reservaAtual = eventosComReserva[guildId] ? eventosComReserva[guildId].reserva : [];
 
@@ -135,7 +141,7 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
                 }
                 return res.send(gerarPainelComReserva(guildId));
             }
-            return res.status(400).send("⚠️ O usuário não está inscrito em nenhuma das listas.");
+            return res.status(400).send("⚠️ O usuário não está inscrito em nenhuma das locais.");
         }
 
         if (acao === 'encerrar') {
