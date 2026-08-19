@@ -63,7 +63,7 @@ const gerarPainelComReserva = (guildId) => {
         texto += "*Nenhum membro na lista atual.*";
     } else {
         evento.membros.forEach((membro, index) => {
-            texto += "`" + (index + 1) + " -` <@" + miembro.id + ">\n";
+            texto += "`" + (index + 1) + " -` <@" + membro.id + ">\n";
         });
     }
 
@@ -94,7 +94,6 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
             userId = req.body.selected_option;
         }
 
-        // 1. CONFIGURAÇÃO INICIAL (Só altera dados se for chamada explicitamente pela Staff criando a lista)
         if (acao === 'configurar_painel') {
             const maxVagas = parseInt(String(contingenteMax).replace(/[^\d]/g, '')) || 10;
             eventosComReserva[guildId] = {
@@ -114,8 +113,6 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
             return res.json(ultimosRelatorios[guildId]);
         }
 
-        // FIX DEFINITIVO: Se o evento JÁ EXISTE no disco rígido, nós bloqueamos qualquer tentativa 
-        // de reconfiguração acidental pelo menu de adicionar membros. Ele preserva 100% as vagas originais.
         if (!eventosComReserva[guildId]) {
             if (acao === 'encerrar') {
                 return res.status(400).send("❌ Erro ao buscar os dados da lista ativa para o relatório.");
@@ -143,7 +140,6 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
             if (!evento.membros) evento.membros = [];
             if (!evento.reserva) evento.reserva = [];
 
-            // Se o usuário selecionado já está inscrito, apenas retorna a lista atual sem alterar nada
             if (evento.membros.some(m => String(m.id) === String(userId)) || evento.reserva.some(m => String(m.id) === String(userId))) {
                 return res.send(gerarPainelComReserva(guildId));
             }
@@ -220,7 +216,6 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
                 relatorioTexto += "*Nenhum membro assinou a lista.*";
             } else {
                 evento.membros.forEach((membro, index) => {
-                evento.membros.forEach((membro, index) => {
                     relatorioTexto += "" + (index + 1) + " - <@" + membro.id + ">\n";
                 });
             }
@@ -245,4 +240,4 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Servidor rodando na porta ${PORT}`));
+app.listen(PORT, () => console.log("🚀 Servidor rodando na porta " + PORT));
