@@ -66,20 +66,12 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
     try {
         console.log("📥 DADOS RECEBIDOS NA REQUISIÇÃO:", req.body);
 
-        let { guildId, userId, username, acao, tipoAcao, contingenteMax, armamento, dataHorario, horarioQg, resultado, valorGanho } = req.body;
+        let { guildId, acao, tipoAcao, contingenteMax, armamento, dataHorario, horarioQg, resultado, valorGanho } = req.body;
         if (!guildId) return res.status(400).send("❌ ID do servidor ausente.");
 
-        // CORREÇÃO INTELIGENTE: Mapeia as variações comuns que o BotGhost envia no menu de membros
-        if (req.body.user_id) userId = req.body.user_id;
-        if (req.body.selected_user_id) userId = req.body.selected_user_id;
-        
-        if (req.body.user_username) username = req.body.user_username;
-        if (req.body.selected_user_name) username = req.body.selected_user_name;
-
-        // Se o BotGhost enviou o texto literal da variável por falha no painel, vamos limpar para não quebrar a menção
-        if (userId && String(userId).includes('{')) {
-            userId = req.body.author_id || req.body.executor_id || userId;
-        }
+        // CAPTURA DO ID DO USUÁRIO USANDO O PADRÃO EXCLUSIVO DO BOTGHOST (user_id)
+        let userId = req.body.user_id || req.body.userId || req.body.selected_user_id;
+        let username = req.body.user_username || req.body.username || "Membro";
 
         if (acao === 'configurar_painel') {
             const maxVagas = parseInt(String(contingenteMax).replace(/[^\d]/g, '')) || 10;
@@ -141,7 +133,7 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
                 }
                 return res.send(gerarPainelComReserva(guildId));
             }
-            return res.status(400).send("⚠️ O usuário não está inscrito em nenhuma das locais.");
+            return res.status(400).send("⚠️ O usuário não está inscrito em nenhuma das listas.");
         }
 
         if (acao === 'encerrar') {
