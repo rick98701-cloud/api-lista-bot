@@ -82,10 +82,10 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
             return res.json(ultimosRelatorios[guildId]);
         }
 
-        if (!eventosComReserva[guildId]) return res.status(400).send("❌ Não existe nenhuma operação activa configurada.");
+        if (!eventosComReserva[guildId]) return res.status(400).send("❌ Não existe nenhuma operação ativa configurada.");
         const evento = eventosComReserva[guildId];
 
-        // --- NOVA AÇÃO: ADICIONAR MANUALMENTE PELO RESPONSÁVEL ---
+        // --- AÇÃO: ADICIONAR MANUAL (OU BOTÃO ENTRAR) ---
         if (acao === 'entrar' || acao === 'adicionar_manual') {
             if (evento.membros.some(m => m.id === userId) || evento.reserva.some(m => m.id === userId)) {
                 return res.status(400).send("⚠️ Este usuário já está inscrito nesta lista de ação!");
@@ -101,7 +101,8 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
             return res.status(400).send("❌ A lista principal e a fila de reserva já estão lotadas!");
         }
 
-        if (acao === 'sair') {
+        // --- AÇÃO: REMOVER MANUAL (OU BOTÃO SAIR) ---
+        if (acao === 'sair' || acao === 'remover_manual') {
             const indexReserva = evento.reserva.findIndex(m => m.id === userId);
             if (indexReserva !== -1) {
                 evento.reserva.splice(indexReserva, 1);
@@ -110,6 +111,7 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
             const indexPrincipal = evento.membros.findIndex(m => m.id === userId);
             if (indexPrincipal !== -1) {
                 evento.membros.splice(indexPrincipal, 1);
+                // Se removeu da principal, puxa automaticamente o primeiro da reserva
                 if (evento.reserva.length > 0) {
                     const primeiroDaReserva = evento.reserva.shift();
                     evento.membros.push(primeiroDaReserva);
