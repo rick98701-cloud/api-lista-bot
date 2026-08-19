@@ -88,17 +88,16 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
         let { guildId, userId, username, acao, tipoAcao, contingenteMax, armamento, dataHorario, horarioQg, resultado, valorGanho } = req.body;
         if (!guildId) return res.status(400).send("❌ ID do servidor ausente.");
 
+        // TRATAMENTO INTELIGENTE DO MENU DE SELEÇÃO DO SEU FLUXO
+        // Evita que o ID da guilda (servidor) entre no lugar do ID do usuário selecionado
         if (req.body.values && req.body.values.length > 0) {
-            userId = req.body.values;
-            username = "Membro";
-            if (!acao) acao = 'adicionar_manual'; 
-        } else if (req.body.selected_option) {
+            if (req.body.values !== guildId) {
+                userId = req.body.values;
+            }
+        } else if (req.body.selected_option && req.body.selected_option !== guildId) {
             userId = req.body.selected_option;
-            username = "Membro";
-            if (!acao) acao = 'adicionar_manual';
         }
 
-        // CORREÇÃO: Só limpa as listas se a ação for explicitamente a criação de um novo painel
         if (acao === 'configurar_painel') {
             const maxVagas = parseInt(String(contingenteMax).replace(/[^\d]/g, '')) || 10;
             eventosComReserva[guildId] = {
@@ -107,7 +106,7 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
                 armamento: armamento || "Não informado",
                 dataHorario: dataHorario || "Não informado", 
                 horarioQg: horarioQg || "Não informado", 
-                membros: [], // Só esvazia aqui na criação oficial
+                membros: [], 
                 reserva: []
             };
             salvarDadosNoDisco();
@@ -118,7 +117,7 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
             return res.json(ultimosRelatorios[guildId]);
         }
 
-        // Se o evento não existir, carrega uma estrutura padrão sem limpar as pessoas caso ela seja criada em tempo de execução
+        // Mantém a lista atual intacta se ela já existir no arquivo local
         if (!eventosComReserva[guildId] && acao !== 'encerrar') {
             eventosComReserva[guildId] = {
                 tipoAcao: tipoAcao || "Operação em Andamento", contingenteMax: parseInt(contingenteMax) || 3, armamento: armamento || "Padrão",
@@ -134,6 +133,11 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
 
         // --- AÇÃO: ADICIONAR MANUAL ---
         if (acao === 'entrar' || acao === 'adicionar_manual') {
+            // Proteção extra: se o ID do usuário capturado ainda for igual ao do servidor, rejeita para não limpar a lista legítima
+            if (userId === guildId || !userId) {
+                return res.status(400).send("❌ Falha ao processar o ID do usuário selecionado.");
+            }
+
             if (evento.membros.some(m => m.id === userId) || evento.reserva.some(m => m.id === userId)) {
                 return res.status(400).send("⚠️ Este usuário já está inscrito nesta lista de ação!");
             }
@@ -152,6 +156,10 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
 
         // --- AÇÃO: REMOVER MANUAL ---
         if (acao === 'sair' || acao === 'remover_manual') {
+            if (userId === guildId || !userId) {
+                return res.status(400).send("❌ Falha ao processar o ID do usuário para remoção.");
+            }
+
             const indexReserva = evento.reserva.findIndex(m => m.id === userId);
             if (indexReserva !== -1) {
                 evento.reserva.splice(indexReserva, 1);
