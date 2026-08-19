@@ -113,12 +113,10 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
             return res.json(ultimosRelatorios[guildId]);
         }
 
-        // CORREÇÃO: Se o evento já existe em disco, mantemos rigorosamente os valores originais carregados do arquivo!
-        // Caso contrário, se for uma nova requisição órfã, usamos valores temporários seguros
         if (!eventosComReserva[guildId]) {
             eventosComReserva[guildId] = {
                 tipoAcao: tipoAcao || "Operação em Andamento", 
-                contingenteMax: parseInt(contingenteMax) || 33, // Assume 33 como contingente de contingência padrão
+                contingenteMax: parseInt(contingenteMax) || 33, 
                 armamento: armamento || "Padrão",
                 dataHorario: dataHorario || obterDataHoraBrasilia(), 
                 horarioQg: "No QG", 
@@ -226,14 +224,15 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
             };
 
             ultimosRelatorios[guildId] = respostaEstruturada;
-        delete eventosComReserva[guildId];
-        salvarDadosNoDisco();
-        return res.json(respostaEstruturada);
+            delete eventosComReserva[guildId];
+            salvarDadosNoDisco();
+            return res.json(respostaEstruturada);
+        }
+        
+        return res.send(gerarPainelComReserva(guildId));
+    } catch (e) { 
+        return res.status(500).send("❌ Erro interno."); 
     }
-    return res.send(gerarPainelComReserva(guildId));
-} catch (e) {
-    return res.status(500).send("❌ Erro interno.");
-}
 });
 
 const PORT = process.env.PORT || 3000;
