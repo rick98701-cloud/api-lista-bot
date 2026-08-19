@@ -76,9 +76,19 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
 
         if (acao === 'configurar_painel') {
             const maxVagas = parseInt(String(contingenteMax).replace(/[^\d]/g, '')) || 10;
+            
+            // CORREÇÃO: Busca se já existem listas na memória para não resetá-las do zero
+            const membrosAtuais = eventosComReserva[guildId] ? eventosComReserva[guildId].membros : [];
+            const reservaAtual = eventosComReserva[guildId] ? eventosComReserva[guildId].reserva : [];
+
             eventosComReserva[guildId] = {
-                tipoAcao: tipoAcao || "Não informado", contingenteMax: maxVagas, armamento: armamento || "Não informado",
-                dataHorario: dataHorario || "Não informado", horarioQg: horarioQg || "Não informado", membros: [], reserva: []
+                tipoAcao: tipoAcao || "Não informado", 
+                contingenteMax: maxVagas, 
+                armamento: armamento || "Não informado",
+                dataHorario: dataHorario || "Não informado", 
+                horarioQg: horarioQg || "Não informado", 
+                membros: membrosAtuais, 
+                reserva: reservaAtual
             };
             return res.send(gerarPainelComReserva(guildId));
         }
