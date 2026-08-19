@@ -6,12 +6,14 @@ const fs = require('fs');
 let eventosComReserva = {};
 let ultimosRelatorios = {}; 
 
-if (fs.existsSync('eventos.json')) {
-    try {
-        eventosComReserva = JSON.parse(fs.readFileSync('eventos.json', 'utf8'));
-        console.log("💾 OPERAÇÕES ATIVAS RECUPERADAS DO DISCO!");
-    } catch (err) { console.log("Erro ao ler eventos.json", err); }
-}
+const carregarDadosDoDisco = () => {
+    if (fs.existsSync('eventos.json')) {
+        try {
+            eventosComReserva = JSON.parse(fs.readFileSync('eventos.json', 'utf8'));
+            console.log("💾 OPERAÇÕES ATIVAS ATUALIZADAS DO DISCO!");
+        } catch (err) { console.log("Erro ao ler eventos.json", err); }
+    }
+};
 
 const salvarDadosNoDisco = () => {
     try {
@@ -37,7 +39,7 @@ const gerarPainelComReserva = (guildId) => {
     texto += "> 🔫 **Armamento Recomendado:** `" + evento.armamento + "`\n";
     texto += "> 📅 **Data & Horário:** `" + evento.dataHorario + "`\n";
     texto += "> 🏰 **Apresentação no QG:** `" + evento.horarioQg + "`\n\n";
-    texto += "⚠️ **Aviso:** Garanta os seus equipamentos e clique nos botões abaixo.\n";
+    texto += "⚠️ **Aviso:** Garanta os seus equipamentos and clique nos botões abaixo.\n";
     texto += "──────────────────────────────\n";
     
     const estaLotado = evento.membros.length >= evento.contingenteMax;
@@ -76,18 +78,22 @@ const gerarPainelComReserva = (guildId) => {
     return texto;
 };
 
+// Força a leitura do arquivo assim que o script inicializa
+carregarDadosDoDisco();
+
 app.post('/gerenciar-lista-reserva', (req, res) => {
     try {
         console.log("📥 DADOS RECEBIDOS NA REQUISIÇÃO:", req.body);
+        
+        // Garante que os dados na memória estão sincronizados com o arquivo salvo antes de qualquer ação
+        carregarDadosDoDisco();
 
         let { guildId, userId, username, acao, tipoAcao, contingenteMax, armamento, dataHorario, horarioQg, resultado, valorGanho } = req.body;
         if (!guildId) return res.status(400).send("❌ ID do servidor ausente.");
 
-        // Captura o usuário selecionado no menu de forma direta
         if (req.body.values && req.body.values.length > 0) {
             userId = req.body.values;
             username = "Membro";
-            // Força a ação correta se ela vier em branco do BotGhost
             if (!acao) acao = 'adicionar_manual'; 
         } else if (req.body.selected_option) {
             userId = req.body.selected_option;
@@ -109,18 +115,19 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
             return res.json(ultimosRelatorios[guildId]);
         }
 
-        // REMOÇÃO DA TRAVA: Se a memória limpou, o código cria o esqueleto na hora com as informações mantidas
-        if (!eventosComReserva[guildId]) {
+        // Se a ação NÃO for encerrar e não houver dados, gera a lista reserva estruturada temporária
+        if (!eventosComReserva[guildId] && acao !== 'encerrar') {
             eventosComReserva[guildId] = {
-                tipoAcao: tipoAcao || "Operação em Andamento", 
-                contingenteMax: parseInt(contingenteMax) || 3, 
-                armamento: armamento || "Padrão",
-                dataHorario: dataHorario || obterDataHoraBrasilia(), 
-                horarioQg: horarioQg || "No QG", 
-                membros: [], 
-                reserva: []
+                tipoAcao: tipoAcao || "Operação em Andamento", contingenteMax: parseInt(contingenteMax) || 3, armamento: armamento || "Padrão",
+                dataHorario: dataHorario || obterDataHoraBrasilia(), horarioQg: horarioQg || "No QG", membros: [], reserva: []
             };
         }
+        
+        // Se a ação for encerrar e mesmo lendo o arquivo ela não constar no sistema, retorna erro
+        if (!eventosComReserva[guildId] && acao === 'encerrar') {
+            return res.status(400).send("❌ Erro ao buscar os dados da lista ativa para o relatório.");
+        }
+
         const evento = eventosComReserva[guildId];
 
         // --- AÇÃO: ADICIONAR MANUAL ---
@@ -208,7 +215,7 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
 
             ultimosRelatorios[guildId] = respostaEstruturada;
             delete eventosComReserva[guildId];
-            salvarDadosNoDisco();
+            salvarDadosNoDisco(); // Limpa do arquivo local
             return res.json(respostaEstruturada);
         }
         return res.send(gerarPainelComReserva(guildId));
