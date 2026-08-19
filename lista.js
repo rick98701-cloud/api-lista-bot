@@ -86,8 +86,19 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
         carregarDadosDoDisco();
 
         let { guildId, userId, username, acao, tipoAcao, contingenteMax, armamento, dataHorario, horarioQg, resultado, valorGanho } = req.body;
-        if (!guildId) return res.status(400).send("❌ ID do servidor ausente.");
+        
+        // CORREÇÃO MESTRE: Se o BotGhost não enviar o guildId nas ações manuais, 
+        // nós pegamos o ID da única lista ativa guardada no arquivo local para não bugar!
+        if (!guildId || guildId === "undefined") {
+            const chavesAtivas = Object.keys(eventosComReserva);
+            if (chavesAtivas.length > 0) {
+                guildId = chavesAtivas[0];
+            } else {
+                return res.status(400).send("❌ ID do servidor ausente.");
+            }
+        }
 
+        // Identifica e isola o ID do usuário selecionado no menu Staff
         let idAlvo = userId;
         if (req.body.values && req.body.values.length > 0 && req.body.values !== guildId) {
             idAlvo = req.body.values;
@@ -95,6 +106,7 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
             idAlvo = req.body.selected_option;
         }
 
+        // 1. CRIAÇÃO OFICIAL DO PAINEL PELA STAFF
         if (acao === 'configurar_painel') {
             const maxVagas = parseInt(String(contingenteMax).replace(/[^\d]/g, '')) || 10;
             eventosComReserva[guildId] = {
@@ -114,20 +126,13 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
             return res.json(ultimosRelatorios[guildId]);
         }
 
+        // BLOQUEIO TOTAL CONTRA RESET: Se o painel já existe em disco, nós NUNCA mais permitimos 
+        // que rotas de inclusão/botões alterem os valores de cabeçalho ou criem listas fantasmas de 7 vagas!
         if (!eventosComReserva[guildId]) {
             if (acao === 'encerrar') {
                 return res.status(400).send("❌ Erro ao buscar os dados da lista ativa para o relatório.");
             }
-            const maxVagasFallback = parseInt(String(contingenteMax).replace(/[^\d]/g, '')) || 7;
-            eventosComReserva[guildId] = {
-                tipoAcao: tipoAcao || "Operação em Andamento", 
-                contingenteMax: maxVagasFallback, 
-                armamento: armamento || "Padrão",
-                dataHorario: dataHorario || obterDataHoraBrasilia(), 
-                horarioQg: "No QG", 
-                membros: [], 
-                reserva: []
-            };
+            return res.status(400).send("❌ Nenhuma operação ativa encontrada na memória.");
         }
         
         const evento = eventosComReserva[guildId];
@@ -147,7 +152,6 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
                 return res.send(gerarPainelComReserva(guildId));
             }
 
-            // GUARDA A ORDEM REAL: Adiciona um marcador de tempo (timestamp) para sabermos quem entrou primeiro
             const novoMembro = { 
                 id: String(idParaAdicionar), 
                 username: username || "Membro", 
@@ -156,17 +160,13 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
 
             if (evento.membros.length < evento.contingenteMax) {
                 evento.membros.push(novoMembro);
-                
-                // ORDENAÇÃO FORÇADA: Garante que a lista siga a ordem de chegada cronológica
                 evento.membros.sort((a, b) => (a.inseridoEm || 0) - (b.inseridoEm || 0));
-                
                 salvarDadosNoDisco();
                 return res.send(gerarPainelComReserva(guildId));
             } 
             if (evento.reserva.length < 5) {
                 evento.reserva.push(novoMembro);
                 evento.reserva.sort((a, b) => (a.inseridoEm || 0) - (b.inseridoEm || 0));
-                
                 salvarDadosNoDisco();
                 return res.send(gerarPainelComReserva(guildId));
             }
@@ -195,7 +195,6 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
                     const primeiroDaReserva = evento.reserva.shift();
                     evento.membros.push(primeiroDaReserva);
                 }
-                // Reordena após a remoção para manter a integridade cronológica
                 evento.membros.sort((a, b) => (a.inseridoEm || 0) - (b.inseridoEm || 0));
                 salvarDadosNoDisco();
                 return res.send(gerarPainelComReserva(guildId));
@@ -228,7 +227,7 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
             relatorioTexto += "> ⚔️ **Operação realizada:** `" + (evento.tipoAcao || "Não informado") + "`\n";
             relatorioTexto += "> 🟢 **Resultado:** `" + statusResultado + "`\n";
             relatorioTexto += "> 💰 " + rotuloValor + ": " + valorFinalExibido + "\n";
-            relatorioTexto += "> 👤 Finalizado por: <@" + (userId || "ID ausente") + ">\n";
+            relatorioTexto += "> 👤 Finalizado por: <@" + (userId || "ID ausente") + "\n";
             relatorioTexto += "> 📅 Data & Horário: " + dataHoraFechamento + "\n\n";
             relatorioTexto += "🎖️ MEMBROS PARTICIPANTES:\n";
 
@@ -255,8 +254,8 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
         }
         
         return res.send(gerarPainelComReserva(guildId));
-    } catch (e) {
-        return res.status(500).send("❌ Erro interno.");
+    } catch (e) { 
+        return res.status(500).send("❌ Erro interno."); 
     }
 });
 
