@@ -69,12 +69,14 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
         let { guildId, acao, tipoAcao, contingenteMax, armamento, dataHorario, horarioQg, resultado, valorGanho } = req.body;
         if (!guildId) return res.status(400).send("❌ ID do servidor ausente.");
 
-        // PRIORIDADE: Pega o membro selecionado no menu (Peteka). Se não houver, pega o executor.
+        // CAPTURA DO USUÁRIO SELECIONADO
         let userId = req.body.selecionado_id || req.body.selected_user_id || req.body.user_id;
         let username = req.body.selecionado_username || req.body.selected_user_name || req.body.user_username || "Membro";
 
-        if (acao === 'configurar_painel') {
-            const maxVagas = parseInt(String(contingenteMax).replace(/[^\d]/g, '')) || 10;
+        // Se a ação for configurar, força a criação do painel independentemente dos dados enviados
+        if (acao === 'configurar_painel' || tipoAcao || contingenteMax) {
+            // Se você definiu 3 vagas no comando, ele vai ler aqui. Se vier vazio, o padrão vira 3 vagas.
+            const maxVagas = parseInt(String(contingenteMax || 3).replace(/[^\d]/g, '')) || 3;
             
             const membrosAtuais = eventosComReserva[guildId] ? eventosComReserva[guildId].membros : [];
             const reservaAtual = eventosComReserva[guildId] ? eventosComReserva[guildId].reserva : [];
@@ -83,7 +85,7 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
                 tipoAcao: tipoAcao || "Não informado", 
                 contingenteMax: maxVagas, 
                 armamento: armamento || "Não informado",
-                dataHorario: dataHorario || "Não informado", 
+                dataHorario: dataHorario || obterDataHoraBrasilia(), 
                 horarioQg: horarioQg || "Não informado", 
                 membros: membrosAtuais, 
                 reserva: reservaAtual
@@ -95,9 +97,17 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
             return res.json(ultimosRelatorios[guildId]);
         }
 
-        // Se não houver painel ativo criado no comando original, avisa o usuário em vez de resetar as vagas para 10
+        // Se por algum motivo a memória limpou mas o painel está no chat, gera uma estrutura com 3 vagas padrão para não travar
         if (!eventosComReserva[guildId]) {
-            return res.status(400).send("❌ Não existe nenhuma operação ativa configurada. Use o comando da Staff primeiro.");
+            eventosComReserva[guildId] = {
+                tipoAcao: "Operação em Andamento", 
+                contingenteMax: 3, 
+                armamento: "Padrão",
+                dataHorario: obterDataHoraBrasilia(), 
+                horarioQg: "No QG", 
+                membros: [], 
+                reserva: []
+            };
         }
         
         const evento = eventosComReserva[guildId];
