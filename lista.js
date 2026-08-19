@@ -78,14 +78,11 @@ const gerarPainelComReserva = (guildId) => {
     return texto;
 };
 
-// Força a leitura do arquivo assim que o script inicializa
 carregarDadosDoDisco();
 
 app.post('/gerenciar-lista-reserva', (req, res) => {
     try {
         console.log("📥 DADOS RECEBIDOS NA REQUISIÇÃO:", req.body);
-        
-        // Garante que os dados na memória estão sincronizados com o arquivo salvo antes de qualquer ação
         carregarDadosDoDisco();
 
         let { guildId, userId, username, acao, tipoAcao, contingenteMax, armamento, dataHorario, horarioQg, resultado, valorGanho } = req.body;
@@ -101,11 +98,17 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
             if (!acao) acao = 'adicionar_manual';
         }
 
+        // CORREÇÃO: Só limpa as listas se a ação for explicitamente a criação de um novo painel
         if (acao === 'configurar_painel') {
             const maxVagas = parseInt(String(contingenteMax).replace(/[^\d]/g, '')) || 10;
             eventosComReserva[guildId] = {
-                tipoAcao: tipoAcao || "Não informado", contingenteMax: maxVagas, armamento: armamento || "Não informado",
-                dataHorario: dataHorario || "Não informado", horarioQg: horarioQg || "Não informado", membros: [], reserva: []
+                tipoAcao: tipoAcao || "Não informado", 
+                contingenteMax: maxVagas, 
+                armamento: armamento || "Não informado",
+                dataHorario: dataHorario || "Não informado", 
+                horarioQg: horarioQg || "Não informado", 
+                membros: [], // Só esvazia aqui na criação oficial
+                reserva: []
             };
             salvarDadosNoDisco();
             return res.send(gerarPainelComReserva(guildId));
@@ -115,7 +118,7 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
             return res.json(ultimosRelatorios[guildId]);
         }
 
-        // Se a ação NÃO for encerrar e não houver dados, gera a lista reserva estruturada temporária
+        // Se o evento não existir, carrega uma estrutura padrão sem limpar as pessoas caso ela seja criada em tempo de execução
         if (!eventosComReserva[guildId] && acao !== 'encerrar') {
             eventosComReserva[guildId] = {
                 tipoAcao: tipoAcao || "Operação em Andamento", contingenteMax: parseInt(contingenteMax) || 3, armamento: armamento || "Padrão",
@@ -123,7 +126,6 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
             };
         }
         
-        // Se a ação for encerrar e mesmo lendo o arquivo ela não constar no sistema, retorna erro
         if (!eventosComReserva[guildId] && acao === 'encerrar') {
             return res.status(400).send("❌ Erro ao buscar os dados da lista ativa para o relatório.");
         }
@@ -215,7 +217,7 @@ app.post('/gerenciar-lista-reserva', (req, res) => {
 
             ultimosRelatorios[guildId] = respostaEstruturada;
             delete eventosComReserva[guildId];
-            salvarDadosNoDisco(); // Limpa do arquivo local
+            salvarDadosNoDisco();
             return res.json(respostaEstruturada);
         }
         return res.send(gerarPainelComReserva(guildId));
